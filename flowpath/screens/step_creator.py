@@ -1,11 +1,12 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QFrame, QMessageBox
+    QPushButton, QFrame, QMessageBox, QMenu
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QPixmap, QAction
 
 from ..models import Step
-from ..widgets import MarkdownTextEdit
+from ..widgets import MarkdownTextEdit, ScreenCapture
 
 
 class StepCreatorScreen(QWidget):
@@ -17,6 +18,9 @@ class StepCreatorScreen(QWidget):
         super().__init__()
         self.screenshot_path = None
         self.step_number = 1  # Will be set by the caller
+        self.screen_capture = ScreenCapture()
+        self.screen_capture.captured.connect(self._on_screenshot_captured)
+        self.screen_capture.cancelled.connect(self._on_screenshot_cancelled)
         self.setup_ui()
 
     def setup_ui(self):
@@ -88,12 +92,13 @@ class StepCreatorScreen(QWidget):
         main_layout.addLayout(top_bar)
         main_layout.addSpacing(20)
 
-        # === SCREENSHOT BUTTON ===
+        # === SCREENSHOT BUTTONS ===
         screenshot_btn_layout = QHBoxLayout()
         screenshot_btn_layout.addStretch()
 
-        self.screenshot_btn = QPushButton("+ Screen Shot")
-        self.screenshot_btn.setStyleSheet("""
+        # Full screen capture button
+        self.fullscreen_btn = QPushButton("Full Screen")
+        self.fullscreen_btn.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
@@ -107,9 +112,28 @@ class StepCreatorScreen(QWidget):
                 background-color: #45a049;
             }
         """)
-        self.screenshot_btn.clicked.connect(self.capture_screenshot)
+        self.fullscreen_btn.clicked.connect(self._capture_full_screen)
 
-        screenshot_btn_layout.addWidget(self.screenshot_btn)
+        # Region select button
+        self.region_btn = QPushButton("Select Region")
+        self.region_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                font-size: 14px;
+                font-weight: bold;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        self.region_btn.clicked.connect(self._capture_region)
+
+        screenshot_btn_layout.addWidget(self.fullscreen_btn)
+        screenshot_btn_layout.addWidget(self.region_btn)
         screenshot_btn_layout.addStretch()
 
         main_layout.addLayout(screenshot_btn_layout)
@@ -153,10 +177,45 @@ class StepCreatorScreen(QWidget):
         self.step_number = number
         self.title_label.setText(f"Step {number} Creator")
 
+    def _capture_full_screen(self):
+        """Capture the full screen."""
+        # Get the main window to minimize
+        main_window = self.window()
+        self.screen_capture.capture_full_screen(main_window)
+
+    def _capture_region(self):
+        """Capture a selected region of the screen."""
+        main_window = self.window()
+        self.screen_capture.capture_region(main_window)
+
+    def _on_screenshot_captured(self, filepath: str):
+        """Handle successful screenshot capture."""
+        self.screenshot_path = filepath
+
+        # Load and display the screenshot
+        pixmap = QPixmap(filepath)
+        if not pixmap.isNull():
+            # Scale to fit the frame while maintaining aspect ratio
+            scaled = pixmap.scaled(
+                self.screenshot_frame.width() - 20,
+                self.screenshot_frame.height() - 20,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
+            self.screenshot_label.setPixmap(scaled)
+            self.screenshot_label.setStyleSheet("border: none;")
+        else:
+            self.screenshot_label.setText("Screenshot saved!")
+            self.screenshot_label.setStyleSheet("color: #4CAF50; font-size: 16px; border: none;")
+
+    def _on_screenshot_cancelled(self):
+        """Handle cancelled screenshot capture."""
+        # Don't change anything if cancelled
+        pass
+
     def capture_screenshot(self):
-        """Placeholder for screenshot capture - we'll implement this next"""
-        self.screenshot_label.setText("Screenshot captured!\n(Capture functionality coming soon)")
-        self.screenshot_label.setStyleSheet("color: #4CAF50; font-size: 16px; border: none;")
+        """Legacy method - triggers full screen capture."""
+        self._capture_full_screen()
 
     def clear_step(self):
         """Clear the form for a new step"""
