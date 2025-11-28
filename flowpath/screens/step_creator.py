@@ -7,6 +7,7 @@ from PyQt6.QtGui import QPixmap, QAction
 
 from ..models import Step
 from ..widgets import MarkdownTextEdit, ScreenCapture
+from ..widgets.annotation_editor import AnnotationEditor
 
 
 class StepCreatorScreen(QWidget):
@@ -189,7 +190,19 @@ class StepCreatorScreen(QWidget):
         self.screen_capture.capture_region(main_window)
 
     def _on_screenshot_captured(self, filepath: str):
-        """Handle successful screenshot capture."""
+        """Handle successful screenshot capture - show annotation editor."""
+        # Show annotation editor
+        try:
+            editor = AnnotationEditor(filepath, self)
+            editor.completed.connect(self._on_annotation_complete)
+            editor.cancelled.connect(lambda: self._on_annotation_complete(filepath))
+            editor.exec()
+        except Exception as e:
+            # If annotation editor fails, just use the raw screenshot
+            self._on_annotation_complete(filepath)
+
+    def _on_annotation_complete(self, filepath: str):
+        """Handle completion of annotation editing."""
         self.screenshot_path = filepath
 
         # Load and display the screenshot
