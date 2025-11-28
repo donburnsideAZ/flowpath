@@ -2,37 +2,44 @@
 ScreenCapture utility for FlowPath.
 
 Provides screen capture functionality with full screen and region select modes.
+Uses native macOS screencapture command on Darwin for reliability.
 """
 
 import os
 import sys
 import uuid
+import subprocess
 import logging
 from datetime import datetime
 from typing import Optional
 
 from PyQt6.QtWidgets import QApplication, QWidget, QMessageBox
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QRect
-from PyQt6.QtGui import QScreen, QPixmap, QPainter, QColor, QPen, QCursor
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QCursor
 
 logger = logging.getLogger(__name__)
+
+
+def is_macos() -> bool:
+    """Check if running on macOS."""
+    return sys.platform == 'darwin'
 
 
 class ScreenCapture(QWidget):
     """
     Screen capture utility that supports full screen and region selection modes.
 
+    On macOS, uses native screencapture command for reliability.
+    On other platforms, uses Qt's grabWindow.
+
     Signals:
         captured(str): Emitted when capture is complete, with the file path
         cancelled(): Emitted when capture is cancelled
 
     Usage:
-        # Full screen capture
         capture = ScreenCapture()
         capture.captured.connect(on_screenshot_taken)
         capture.capture_full_screen(parent_window)
-
-        # Region select (to be implemented)
         capture.capture_region(parent_window)
     """
 
@@ -45,7 +52,7 @@ class ScreenCapture(QWidget):
         self.parent_window = None
         self._ensure_save_directory()
 
-        # For region selection
+        # For region selection (non-macOS)
         self.selecting = False
         self.selection_start = None
         self.selection_end = None
@@ -53,7 +60,10 @@ class ScreenCapture(QWidget):
 
     def _get_default_save_dir(self) -> str:
         """Get the default directory for saving screenshots."""
-        if os.name == 'posix':
+        if sys.platform == 'darwin':
+            # macOS: use ~/Library/Application Support
+            data_home = os.path.expanduser('~/Library/Application Support')
+        elif os.name == 'posix':
             data_home = os.environ.get('XDG_DATA_HOME',
                                        os.path.expanduser('~/.local/share'))
         else:
@@ -65,23 +75,24 @@ class ScreenCapture(QWidget):
         """Ensure the save directory exists."""
         os.makedirs(self.save_directory, exist_ok=True)
 
-    def _generate_filename(self) -> str:
-        """Generate a unique filename for the screenshot."""
+    def _generate_filepath(self) -> str:
+        """Generate a unique filepath for the screenshot."""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         unique_id = str(uuid.uuid4())[:8]
-        return f"screenshot_{timestamp}_{unique_id}.png"
+        filename = f"screenshot_{timestamp}_{unique_id}.png"
+        return os.path.join(self.save_directory, filename)
 
     def _save_pixmap(self, pixmap: QPixmap) -> Optional[str]:
         """Save a pixmap to a file and return the path."""
         if pixmap.isNull():
             return None
 
-        filename = self._generate_filename()
-        filepath = os.path.join(self.save_directory, filename)
-
+        filepath = self._generate_filepath()
         if pixmap.save(filepath, 'PNG'):
             return filepath
         return None
+
+    # ========== FULL SCREEN CAPTURE ==========
 
     def capture_full_screen(self, parent_window: Optional[QWidget] = None, delay_ms: int = 300):
         """
@@ -102,6 +113,48 @@ class ScreenCapture(QWidget):
 
     def _do_full_screen_capture(self):
         """Perform the actual full screen capture."""
+        if is_macos():
+            self._do_macos_full_screen_capture()
+        else:
+            self._do_qt_full_screen_capture()
+
+    def _do_macos_full_screen_capture(self):
+        """Use native macOS screencapture command."""
+        try:
+            filepath = self._generate_filepath()
+
+            # Run screencapture: -x = no sound
+            result = subprocess.run(
+                ['screencapture', '-x', filepath],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            # Restore parent window
+            if self.parent_window:
+                self.parent_window.showNormal()
+                self.parent_window.activateWindow()
+
+            if result.returncode == 0 and os.path.exists(filepath):
+                self.captured.emit(filepath)
+            else:
+                error_msg = result.stderr or "Unknown error"
+                logger.error(f"macOS screencapture failed: {error_msg}")
+                self._show_macos_permission_error()
+
+        except subprocess.TimeoutExpired:
+            logger.error("screencapture timed out")
+            self._restore_and_emit_error("Screen capture timed out.")
+        except FileNotFoundError:
+            logger.error("screencapture command not found")
+            self._restore_and_emit_error("screencapture command not found.")
+        except Exception as e:
+            logger.exception("Error during macOS screen capture")
+            self._restore_and_emit_error(f"Screen capture error: {str(e)}")
+
+    def _do_qt_full_screen_capture(self):
+        """Use Qt grabWindow for non-macOS platforms."""
         try:
             screen = QApplication.primaryScreen()
             if screen is None:
@@ -109,29 +162,19 @@ class ScreenCapture(QWidget):
                 self._restore_and_emit_error("No screen available for capture.")
                 return
 
-            # Capture the screen
             pixmap = screen.grabWindow(0)
 
-            # Check if capture succeeded (can fail silently on macOS without permissions)
             if pixmap.isNull() or pixmap.width() == 0 or pixmap.height() == 0:
-                logger.error("Screen capture returned empty pixmap - likely permissions issue")
-                self._restore_and_emit_error(
-                    "Screen capture failed.\n\n"
-                    "On macOS, please grant Screen Recording permission:\n"
-                    "System Preferences → Security & Privacy → Privacy → Screen Recording\n\n"
-                    "Add and enable this application, then restart it."
-                )
+                logger.error("Screen capture returned empty pixmap")
+                self._restore_and_emit_error("Screen capture failed.")
                 return
 
-            # Save the screenshot
             filepath = self._save_pixmap(pixmap)
 
-            # Restore parent window
             if self.parent_window:
                 self.parent_window.showNormal()
                 self.parent_window.activateWindow()
 
-            # Emit result
             if filepath:
                 self.captured.emit(filepath)
             else:
@@ -139,10 +182,9 @@ class ScreenCapture(QWidget):
 
         except Exception as e:
             logger.exception("Error during screen capture")
-            self._restore_and_emit_error(
-                f"Screen capture error: {str(e)}\n\n"
-                "On macOS, ensure Screen Recording permission is granted."
-            )
+            self._restore_and_emit_error(f"Screen capture error: {str(e)}")
+
+    # ========== REGION CAPTURE ==========
 
     def capture_region(self, parent_window: Optional[QWidget] = None, delay_ms: int = 300):
         """
@@ -159,10 +201,56 @@ class ScreenCapture(QWidget):
             parent_window.showMinimized()
 
         # Delay to allow window to minimize
-        QTimer.singleShot(delay_ms, self._show_region_selector)
+        QTimer.singleShot(delay_ms, self._do_region_capture)
+
+    def _do_region_capture(self):
+        """Perform the region capture."""
+        if is_macos():
+            self._do_macos_region_capture()
+        else:
+            self._show_region_selector()
+
+    def _do_macos_region_capture(self):
+        """Use native macOS screencapture with interactive selection."""
+        try:
+            filepath = self._generate_filepath()
+
+            # Run screencapture: -x = no sound, -i = interactive (region select)
+            result = subprocess.run(
+                ['screencapture', '-x', '-i', filepath],
+                capture_output=True,
+                text=True,
+                timeout=120  # Longer timeout for user interaction
+            )
+
+            # Restore parent window
+            if self.parent_window:
+                self.parent_window.showNormal()
+                self.parent_window.activateWindow()
+
+            if result.returncode == 0 and os.path.exists(filepath):
+                self.captured.emit(filepath)
+            elif result.returncode == 1:
+                # User cancelled (pressed Escape)
+                logger.info("User cancelled region selection")
+                self.cancelled.emit()
+            else:
+                error_msg = result.stderr or "Unknown error"
+                logger.error(f"macOS screencapture region failed: {error_msg}")
+                self._show_macos_permission_error()
+
+        except subprocess.TimeoutExpired:
+            logger.error("screencapture region timed out")
+            self._restore_and_emit_error("Screen capture timed out.")
+        except FileNotFoundError:
+            logger.error("screencapture command not found")
+            self._restore_and_emit_error("screencapture command not found.")
+        except Exception as e:
+            logger.exception("Error during macOS region capture")
+            self._restore_and_emit_error(f"Screen capture error: {str(e)}")
 
     def _show_region_selector(self):
-        """Show the region selection overlay."""
+        """Show the Qt-based region selection overlay (non-macOS)."""
         try:
             screen = QApplication.primaryScreen()
             if screen is None:
@@ -170,21 +258,13 @@ class ScreenCapture(QWidget):
                 self._restore_and_emit_error("No screen available for capture.")
                 return
 
-            # Capture the full screen first (we'll crop later)
             self.screen_pixmap = screen.grabWindow(0)
 
-            # Check if capture succeeded
             if self.screen_pixmap.isNull() or self.screen_pixmap.width() == 0:
                 logger.error("Region capture: screen grab returned empty pixmap")
-                self._restore_and_emit_error(
-                    "Screen capture failed.\n\n"
-                    "On macOS, please grant Screen Recording permission:\n"
-                    "System Preferences → Security & Privacy → Privacy → Screen Recording\n\n"
-                    "Add and enable this application, then restart it."
-                )
+                self._restore_and_emit_error("Screen capture failed.")
                 return
 
-            # Set up this widget as a fullscreen overlay
             screen_geometry = screen.geometry()
             self.setGeometry(screen_geometry)
             self.setWindowFlags(
@@ -195,20 +275,17 @@ class ScreenCapture(QWidget):
             self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
             self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
 
-            # Reset selection state
             self.selecting = False
             self.selection_start = None
             self.selection_end = None
 
-            # Show fullscreen
             self.showFullScreen()
 
         except Exception as e:
             logger.exception("Error showing region selector")
-            self._restore_and_emit_error(
-                f"Screen capture error: {str(e)}\n\n"
-                "On macOS, ensure Screen Recording permission is granted."
-            )
+            self._restore_and_emit_error(f"Screen capture error: {str(e)}")
+
+    # ========== QT REGION SELECTION UI (non-macOS) ==========
 
     def paintEvent(self, event):
         """Paint the selection overlay."""
@@ -216,30 +293,21 @@ class ScreenCapture(QWidget):
             return
 
         painter = QPainter(self)
-
-        # Draw the captured screen
         painter.drawPixmap(0, 0, self.screen_pixmap)
 
-        # Draw semi-transparent overlay
         overlay = QColor(0, 0, 0, 100)
         painter.fillRect(self.rect(), overlay)
 
-        # Draw selection rectangle if selecting
         if self.selection_start and self.selection_end:
             selection_rect = QRect(self.selection_start, self.selection_end).normalized()
-
-            # Clear the overlay in the selection area (show original image)
             painter.drawPixmap(selection_rect, self.screen_pixmap, selection_rect)
 
-            # Draw selection border
-            pen = QPen(QColor(76, 175, 80), 2)  # Green border
+            pen = QPen(QColor(76, 175, 80), 2)
             painter.setPen(pen)
             painter.drawRect(selection_rect)
 
-        # Draw instructions
         painter.setPen(QColor(255, 255, 255))
         painter.drawText(20, 30, "Click and drag to select a region. Press ESC to cancel.")
-
         painter.end()
 
     def mousePressEvent(self, event):
@@ -274,36 +342,29 @@ class ScreenCapture(QWidget):
             self._restore_and_cancel()
             return
 
-        # Calculate selection rectangle
         selection_rect = QRect(self.selection_start, self.selection_end).normalized()
 
-        # Minimum size check
         if selection_rect.width() < 10 or selection_rect.height() < 10:
             self._restore_and_cancel()
             return
 
-        # Crop the pixmap
         cropped = self.screen_pixmap.copy(selection_rect)
-
-        # Hide the overlay
         self.hide()
 
-        # Save the cropped screenshot
         filepath = self._save_pixmap(cropped)
 
-        # Restore parent window
         if self.parent_window:
             self.parent_window.showNormal()
             self.parent_window.activateWindow()
 
-        # Emit result
         if filepath:
             self.captured.emit(filepath)
         else:
             self.cancelled.emit()
 
-        # Clean up
         self.screen_pixmap = None
+
+    # ========== HELPERS ==========
 
     def _restore_and_cancel(self):
         """Restore parent window and emit cancelled signal."""
@@ -321,7 +382,6 @@ class ScreenCapture(QWidget):
             self.parent_window.showNormal()
             self.parent_window.activateWindow()
 
-        # Show error dialog
         QMessageBox.warning(
             self.parent_window,
             "Screen Capture Error",
@@ -329,3 +389,12 @@ class ScreenCapture(QWidget):
         )
         self.cancelled.emit()
         self.screen_pixmap = None
+
+    def _show_macos_permission_error(self):
+        """Show macOS-specific permission error."""
+        self._restore_and_emit_error(
+            "Screen capture failed.\n\n"
+            "Please grant Screen Recording permission:\n"
+            "System Settings → Privacy & Security → Screen Recording\n\n"
+            "Enable this application, then try again."
+        )
