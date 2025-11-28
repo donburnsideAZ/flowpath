@@ -1,0 +1,367 @@
+"""
+DataService for FlowPath application.
+
+Provides a centralized, singleton-style access point for all data operations.
+This is the primary interface that UI components use to interact with the database.
+"""
+
+from typing import List, Optional, Tuple
+from ..models import Path, Step
+from ..data import Database, PathRepository, StepRepository
+
+
+class DataService:
+    """
+    Centralized data service for the FlowPath application.
+
+    This service provides a clean API for all data operations and manages
+    the database connection and repositories.
+
+    Usage:
+        # Get the singleton instance
+        service = DataService.instance()
+
+        # Create a new path
+        path = Path(title="My Guide", category="LMS")
+        path_id = service.create_path(path)
+
+        # Add steps
+        step = Step(path_id=path_id, step_number=1, instructions="Click here")
+        service.create_step(step)
+
+        # Retrieve paths
+        all_paths = service.get_all_paths()
+        path = service.get_path_with_steps(path_id)
+    """
+
+    _instance: Optional['DataService'] = None
+
+    def __init__(self, db_path: Optional[str] = None):
+        """
+        Initialize the data service.
+
+        Args:
+            db_path: Optional path to the database file.
+                     If None, uses the default location.
+        """
+        self.db = Database(db_path)
+        self.db.initialize()
+        self._path_repo = PathRepository(self.db)
+        self._step_repo = StepRepository(self.db)
+
+    @classmethod
+    def instance(cls, db_path: Optional[str] = None) -> 'DataService':
+        """
+        Get the singleton instance of the DataService.
+
+        Args:
+            db_path: Optional path to database (only used on first call)
+
+        Returns:
+            The DataService singleton instance
+        """
+        if cls._instance is None:
+            cls._instance = cls(db_path)
+        return cls._instance
+
+    @classmethod
+    def reset_instance(cls) -> None:
+        """Reset the singleton instance (useful for testing)."""
+        cls._instance = None
+
+    # ==================== Path Operations ====================
+
+    def create_path(self, path: Path) -> int:
+        """
+        Create a new path.
+
+        Args:
+            path: Path object to create
+
+        Returns:
+            The ID of the created path
+        """
+        return self._path_repo.create(path)
+
+    def get_path(self, path_id: int) -> Optional[Path]:
+        """
+        Get a path by its ID.
+
+        Args:
+            path_id: The ID of the path
+
+        Returns:
+            Path object if found, None otherwise
+        """
+        return self._path_repo.get_by_id(path_id)
+
+    def get_path_with_steps(self, path_id: int) -> Optional[Tuple[Path, List[Step]]]:
+        """
+        Get a path along with all its steps.
+
+        Args:
+            path_id: The ID of the path
+
+        Returns:
+            Tuple of (Path, List[Step]) if found, None otherwise
+        """
+        path = self._path_repo.get_by_id(path_id)
+        if path is None:
+            return None
+        steps = self._step_repo.get_by_path_id(path_id)
+        return (path, steps)
+
+    def get_all_paths(self) -> List[Path]:
+        """
+        Get all paths, ordered by most recently updated.
+
+        Returns:
+            List of all Path objects
+        """
+        return self._path_repo.get_all()
+
+    def get_paths_by_category(self, category: str) -> List[Path]:
+        """
+        Get paths filtered by category.
+
+        Args:
+            category: Category to filter by
+
+        Returns:
+            List of Path objects in the category
+        """
+        return self._path_repo.get_by_category(category)
+
+    def get_paths_by_tag(self, tag: str) -> List[Path]:
+        """
+        Get paths containing a specific tag.
+
+        Args:
+            tag: Tag to search for
+
+        Returns:
+            List of Path objects with the tag
+        """
+        return self._path_repo.get_by_tag(tag)
+
+    def search_paths(self, query: str) -> List[Path]:
+        """
+        Search paths by title, description, or tags.
+
+        Args:
+            query: Search query
+
+        Returns:
+            List of matching Path objects
+        """
+        return self._path_repo.search(query)
+
+    def update_path(self, path: Path) -> bool:
+        """
+        Update an existing path.
+
+        Args:
+            path: Path object with updated values
+
+        Returns:
+            True if update was successful
+        """
+        return self._path_repo.update(path)
+
+    def delete_path(self, path_id: int) -> bool:
+        """
+        Delete a path and all its steps.
+
+        Args:
+            path_id: ID of the path to delete
+
+        Returns:
+            True if deletion was successful
+        """
+        return self._path_repo.delete(path_id)
+
+    def get_categories(self) -> List[str]:
+        """
+        Get all unique categories.
+
+        Returns:
+            List of category names
+        """
+        return self._path_repo.get_categories()
+
+    def get_all_tags(self) -> List[str]:
+        """
+        Get all unique tags across all paths.
+
+        Returns:
+            List of tag names
+        """
+        return self._path_repo.get_all_tags()
+
+    def count_paths(self) -> int:
+        """
+        Get the total number of paths.
+
+        Returns:
+            Number of paths
+        """
+        return self._path_repo.count()
+
+    # ==================== Step Operations ====================
+
+    def create_step(self, step: Step) -> int:
+        """
+        Create a new step.
+
+        Args:
+            step: Step object to create
+
+        Returns:
+            The ID of the created step
+        """
+        return self._step_repo.create(step)
+
+    def get_step(self, step_id: int) -> Optional[Step]:
+        """
+        Get a step by its ID.
+
+        Args:
+            step_id: The ID of the step
+
+        Returns:
+            Step object if found, None otherwise
+        """
+        return self._step_repo.get_by_id(step_id)
+
+    def get_steps_for_path(self, path_id: int) -> List[Step]:
+        """
+        Get all steps for a path, ordered by step number.
+
+        Args:
+            path_id: The ID of the path
+
+        Returns:
+            List of Step objects
+        """
+        return self._step_repo.get_by_path_id(path_id)
+
+    def update_step(self, step: Step) -> bool:
+        """
+        Update an existing step.
+
+        Args:
+            step: Step object with updated values
+
+        Returns:
+            True if update was successful
+        """
+        return self._step_repo.update(step)
+
+    def delete_step(self, step_id: int) -> bool:
+        """
+        Delete a step.
+
+        Args:
+            step_id: ID of the step to delete
+
+        Returns:
+            True if deletion was successful
+        """
+        return self._step_repo.delete(step_id)
+
+    def get_next_step_number(self, path_id: int) -> int:
+        """
+        Get the next available step number for a path.
+
+        Args:
+            path_id: ID of the path
+
+        Returns:
+            Next step number
+        """
+        return self._step_repo.get_next_step_number(path_id)
+
+    def count_steps(self, path_id: int) -> int:
+        """
+        Get the number of steps in a path.
+
+        Args:
+            path_id: ID of the path
+
+        Returns:
+            Number of steps
+        """
+        return self._step_repo.count_by_path_id(path_id)
+
+    # ==================== Convenience Methods ====================
+
+    def save_path_with_steps(self, path: Path, steps: List[Step]) -> int:
+        """
+        Save a path along with all its steps in a single operation.
+
+        If the path already exists (has an ID), it will be updated.
+        Steps are replaced entirely with the new list.
+
+        Args:
+            path: Path object to save
+            steps: List of Step objects for the path
+
+        Returns:
+            The ID of the saved path
+        """
+        if path.id is None:
+            # New path
+            path_id = self.create_path(path)
+        else:
+            # Existing path - update it
+            self.update_path(path)
+            path_id = path.id
+            # Delete existing steps
+            self._step_repo.delete_by_path_id(path_id)
+
+        # Create new steps
+        for i, step in enumerate(steps, start=1):
+            step.path_id = path_id
+            step.step_number = i
+            self.create_step(step)
+
+        return path_id
+
+    def duplicate_path(self, path_id: int, new_title: Optional[str] = None) -> Optional[int]:
+        """
+        Duplicate a path and all its steps.
+
+        Args:
+            path_id: ID of the path to duplicate
+            new_title: Optional new title (defaults to "Copy of <original>")
+
+        Returns:
+            ID of the new path, or None if original not found
+        """
+        result = self.get_path_with_steps(path_id)
+        if result is None:
+            return None
+
+        original_path, original_steps = result
+
+        # Create new path
+        new_path = Path(
+            title=new_title or f"Copy of {original_path.title}",
+            category=original_path.category,
+            tags=original_path.tags,
+            description=original_path.description,
+            creator=original_path.creator,
+        )
+        new_path_id = self.create_path(new_path)
+
+        # Duplicate steps
+        for step in original_steps:
+            new_step = Step(
+                path_id=new_path_id,
+                step_number=step.step_number,
+                instructions=step.instructions,
+                screenshot_path=step.screenshot_path,
+            )
+            self.create_step(new_step)
+
+        return new_path_id
