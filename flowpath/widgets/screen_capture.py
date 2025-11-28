@@ -5,13 +5,17 @@ Provides screen capture functionality with full screen and region select modes.
 """
 
 import os
+import sys
 import uuid
+import logging
 from datetime import datetime
 from typing import Optional
 
-from PyQt6.QtWidgets import QApplication, QWidget
+from PyQt6.QtWidgets import QApplication, QWidget, QMessageBox
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QRect
 from PyQt6.QtGui import QScreen, QPixmap, QPainter, QColor, QPen, QCursor
+
+logger = logging.getLogger(__name__)
 
 
 class ScreenCapture(QWidget):
@@ -98,27 +102,47 @@ class ScreenCapture(QWidget):
 
     def _do_full_screen_capture(self):
         """Perform the actual full screen capture."""
-        screen = QApplication.primaryScreen()
-        if screen is None:
-            self._restore_and_cancel()
-            return
+        try:
+            screen = QApplication.primaryScreen()
+            if screen is None:
+                logger.error("No primary screen available")
+                self._restore_and_emit_error("No screen available for capture.")
+                return
 
-        # Capture the screen
-        pixmap = screen.grabWindow(0)
+            # Capture the screen
+            pixmap = screen.grabWindow(0)
 
-        # Save the screenshot
-        filepath = self._save_pixmap(pixmap)
+            # Check if capture succeeded (can fail silently on macOS without permissions)
+            if pixmap.isNull() or pixmap.width() == 0 or pixmap.height() == 0:
+                logger.error("Screen capture returned empty pixmap - likely permissions issue")
+                self._restore_and_emit_error(
+                    "Screen capture failed.\n\n"
+                    "On macOS, please grant Screen Recording permission:\n"
+                    "System Preferences → Security & Privacy → Privacy → Screen Recording\n\n"
+                    "Add and enable this application, then restart it."
+                )
+                return
 
-        # Restore parent window
-        if self.parent_window:
-            self.parent_window.showNormal()
-            self.parent_window.activateWindow()
+            # Save the screenshot
+            filepath = self._save_pixmap(pixmap)
 
-        # Emit result
-        if filepath:
-            self.captured.emit(filepath)
-        else:
-            self.cancelled.emit()
+            # Restore parent window
+            if self.parent_window:
+                self.parent_window.showNormal()
+                self.parent_window.activateWindow()
+
+            # Emit result
+            if filepath:
+                self.captured.emit(filepath)
+            else:
+                self._restore_and_emit_error("Failed to save screenshot.")
+
+        except Exception as e:
+            logger.exception("Error during screen capture")
+            self._restore_and_emit_error(
+                f"Screen capture error: {str(e)}\n\n"
+                "On macOS, ensure Screen Recording permission is granted."
+            )
 
     def capture_region(self, parent_window: Optional[QWidget] = None, delay_ms: int = 300):
         """
@@ -139,32 +163,52 @@ class ScreenCapture(QWidget):
 
     def _show_region_selector(self):
         """Show the region selection overlay."""
-        screen = QApplication.primaryScreen()
-        if screen is None:
-            self._restore_and_cancel()
-            return
+        try:
+            screen = QApplication.primaryScreen()
+            if screen is None:
+                logger.error("No primary screen available for region capture")
+                self._restore_and_emit_error("No screen available for capture.")
+                return
 
-        # Capture the full screen first (we'll crop later)
-        self.screen_pixmap = screen.grabWindow(0)
+            # Capture the full screen first (we'll crop later)
+            self.screen_pixmap = screen.grabWindow(0)
 
-        # Set up this widget as a fullscreen overlay
-        screen_geometry = screen.geometry()
-        self.setGeometry(screen_geometry)
-        self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Tool
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
-        self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
+            # Check if capture succeeded
+            if self.screen_pixmap.isNull() or self.screen_pixmap.width() == 0:
+                logger.error("Region capture: screen grab returned empty pixmap")
+                self._restore_and_emit_error(
+                    "Screen capture failed.\n\n"
+                    "On macOS, please grant Screen Recording permission:\n"
+                    "System Preferences → Security & Privacy → Privacy → Screen Recording\n\n"
+                    "Add and enable this application, then restart it."
+                )
+                return
 
-        # Reset selection state
-        self.selecting = False
-        self.selection_start = None
-        self.selection_end = None
+            # Set up this widget as a fullscreen overlay
+            screen_geometry = screen.geometry()
+            self.setGeometry(screen_geometry)
+            self.setWindowFlags(
+                Qt.WindowType.FramelessWindowHint |
+                Qt.WindowType.WindowStaysOnTopHint |
+                Qt.WindowType.Tool
+            )
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
+            self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
 
-        # Show fullscreen
-        self.showFullScreen()
+            # Reset selection state
+            self.selecting = False
+            self.selection_start = None
+            self.selection_end = None
+
+            # Show fullscreen
+            self.showFullScreen()
+
+        except Exception as e:
+            logger.exception("Error showing region selector")
+            self._restore_and_emit_error(
+                f"Screen capture error: {str(e)}\n\n"
+                "On macOS, ensure Screen Recording permission is granted."
+            )
 
     def paintEvent(self, event):
         """Paint the selection overlay."""
@@ -267,5 +311,21 @@ class ScreenCapture(QWidget):
         if self.parent_window:
             self.parent_window.showNormal()
             self.parent_window.activateWindow()
+        self.cancelled.emit()
+        self.screen_pixmap = None
+
+    def _restore_and_emit_error(self, message: str):
+        """Restore parent window, show error message, and emit cancelled signal."""
+        self.hide()
+        if self.parent_window:
+            self.parent_window.showNormal()
+            self.parent_window.activateWindow()
+
+        # Show error dialog
+        QMessageBox.warning(
+            self.parent_window,
+            "Screen Capture Error",
+            message
+        )
         self.cancelled.emit()
         self.screen_pixmap = None
