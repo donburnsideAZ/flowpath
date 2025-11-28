@@ -2,14 +2,13 @@
 Annotation Editor for FlowPath.
 
 Provides tools for annotating screenshots with arrows, rectangles, text, callouts,
-blur regions, and cropping.
+blur regions, and cropping. Supports selecting and moving annotations.
 """
 
 import math
 from enum import Enum, auto
 from dataclasses import dataclass
 from typing import Optional, List
-from copy import deepcopy
 
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
@@ -19,12 +18,13 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QPoint, QRect, pyqtSignal
 from PyQt6.QtGui import (
     QPixmap, QPainter, QColor, QPen, QBrush, QFont,
-    QPolygon, QFontMetrics, QImage
+    QPolygon, QFontMetrics, QCursor
 )
 
 
 class Tool(Enum):
     """Available annotation tools."""
+    SELECT = auto()
     ARROW = auto()
     RECTANGLE = auto()
     TEXT = auto()
@@ -53,6 +53,63 @@ class Annotation:
             text=self.text,
             number=self.number
         )
+
+    def get_bounding_rect(self) -> QRect:
+        """Get the bounding rectangle for hit testing."""
+        if self.tool == Tool.ARROW:
+            # Arrow bounding box with some padding
+            min_x = min(self.start.x(), self.end.x()) - 10
+            min_y = min(self.start.y(), self.end.y()) - 10
+            max_x = max(self.start.x(), self.end.x()) + 10
+            max_y = max(self.start.y(), self.end.y()) + 10
+            return QRect(min_x, min_y, max_x - min_x, max_y - min_y)
+        elif self.tool == Tool.RECTANGLE:
+            return QRect(self.start, self.end).normalized().adjusted(-5, -5, 5, 5)
+        elif self.tool == Tool.TEXT:
+            # Approximate text bounds
+            return QRect(self.start.x() - 5, self.start.y() - 25, 200, 30)
+        elif self.tool == Tool.CALLOUT:
+            # Circle with radius 14
+            return QRect(self.start.x() - 18, self.start.y() - 18, 36, 36)
+        return QRect()
+
+    def contains_point(self, point: QPoint) -> bool:
+        """Check if a point is within this annotation."""
+        if self.tool == Tool.CALLOUT:
+            # Circle hit test
+            dx = point.x() - self.start.x()
+            dy = point.y() - self.start.y()
+            return (dx * dx + dy * dy) <= (18 * 18)
+        elif self.tool == Tool.ARROW:
+            # Line distance test
+            return self._point_near_line(point, self.start, self.end, 10)
+        else:
+            return self.get_bounding_rect().contains(point)
+
+    def _point_near_line(self, point: QPoint, start: QPoint, end: QPoint, threshold: float) -> bool:
+        """Check if point is within threshold distance of line segment."""
+        # Vector from start to end
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+        length_sq = dx * dx + dy * dy
+
+        if length_sq == 0:
+            # Start and end are the same point
+            return (point.x() - start.x()) ** 2 + (point.y() - start.y()) ** 2 <= threshold ** 2
+
+        # Project point onto line
+        t = max(0, min(1, ((point.x() - start.x()) * dx + (point.y() - start.y()) * dy) / length_sq))
+        proj_x = start.x() + t * dx
+        proj_y = start.y() + t * dy
+
+        # Distance from point to projection
+        dist_sq = (point.x() - proj_x) ** 2 + (point.y() - proj_y) ** 2
+        return dist_sq <= threshold ** 2
+
+    def move_by(self, delta: QPoint):
+        """Move this annotation by the given delta."""
+        self.start = QPoint(self.start.x() + delta.x(), self.start.y() + delta.y())
+        self.end = QPoint(self.end.x() + delta.x(), self.end.y() + delta.y())
 
 
 class ColorButton(QPushButton):
@@ -91,11 +148,11 @@ class ToolButton(QPushButton):
         super().__init__(text, parent)
         self.tool = tool
         self.setCheckable(True)
-        self.setMinimumWidth(70)
+        self.setMinimumWidth(65)
         self.setStyleSheet("""
             QPushButton {
-                padding: 8px 10px;
-                font-size: 13px;
+                padding: 8px 8px;
+                font-size: 12px;
                 border: 1px solid #ccc;
                 border-radius: 4px;
                 background: #f5f5f5;
@@ -130,24 +187,27 @@ class CanvasState:
 class AnnotationCanvas(QWidget):
     """Canvas widget for displaying and annotating screenshots."""
 
-    # Signal emitted when canvas state changes (for undo/redo button states)
     state_changed = pyqtSignal()
 
     def __init__(self, pixmap: QPixmap, parent=None):
         super().__init__(parent)
-        self.base_pixmap = pixmap.copy()  # The current base image (can change with crop)
+        self.base_pixmap = pixmap.copy()
         self.annotations: List[Annotation] = []
         self.current_annotation: Optional[Annotation] = None
         self.current_tool = Tool.ARROW
-        self.current_color = QColor("#FF0000")  # Red default
+        self.current_color = QColor("#FF0000")
         self.callout_counter = 1
+
+        # Selection state
+        self.selected_index: Optional[int] = None
+        self.dragging = False
+        self.drag_start: Optional[QPoint] = None
 
         # Undo/redo stacks
         self.undo_stack: List[CanvasState] = []
         self.redo_stack: List[CanvasState] = []
         self.max_history = 50
 
-        # Set fixed size to match image
         self.setFixedSize(pixmap.size())
         self.setMouseTracking(True)
 
@@ -159,11 +219,8 @@ class AnnotationCanvas(QWidget):
             callout_counter=self.callout_counter
         )
         self.undo_stack.append(state)
-
-        # Clear redo stack when new action is performed
         self.redo_stack.clear()
 
-        # Limit history size
         if len(self.undo_stack) > self.max_history:
             self.undo_stack.pop(0)
 
@@ -174,23 +231,20 @@ class AnnotationCanvas(QWidget):
         self.base_pixmap = state.pixmap.copy()
         self.annotations = [a.copy() for a in state.annotations]
         self.callout_counter = state.callout_counter
+        self.selected_index = None
         self.setFixedSize(self.base_pixmap.size())
         self.update()
 
     def can_undo(self) -> bool:
-        """Check if undo is available."""
         return len(self.undo_stack) > 0
 
     def can_redo(self) -> bool:
-        """Check if redo is available."""
         return len(self.redo_stack) > 0
 
     def undo(self) -> bool:
-        """Undo the last action."""
         if not self.undo_stack:
             return False
 
-        # Save current state to redo stack
         current_state = CanvasState(
             pixmap=self.base_pixmap.copy(),
             annotations=[a.copy() for a in self.annotations],
@@ -198,18 +252,15 @@ class AnnotationCanvas(QWidget):
         )
         self.redo_stack.append(current_state)
 
-        # Restore previous state
         previous_state = self.undo_stack.pop()
         self._restore_state(previous_state)
         self.state_changed.emit()
         return True
 
     def redo(self) -> bool:
-        """Redo the last undone action."""
         if not self.redo_stack:
             return False
 
-        # Save current state to undo stack
         current_state = CanvasState(
             pixmap=self.base_pixmap.copy(),
             annotations=[a.copy() for a in self.annotations],
@@ -217,7 +268,6 @@ class AnnotationCanvas(QWidget):
         )
         self.undo_stack.append(current_state)
 
-        # Restore next state
         next_state = self.redo_stack.pop()
         self._restore_state(next_state)
         self.state_changed.emit()
@@ -226,10 +276,29 @@ class AnnotationCanvas(QWidget):
     def set_tool(self, tool: Tool):
         """Set the current drawing tool."""
         self.current_tool = tool
+        if tool != Tool.SELECT:
+            self.selected_index = None
+            self.update()
 
     def set_color(self, color: QColor):
         """Set the current drawing color."""
         self.current_color = color
+
+    def delete_selected(self):
+        """Delete the currently selected annotation."""
+        if self.selected_index is not None and 0 <= self.selected_index < len(self.annotations):
+            self._save_state()
+            del self.annotations[self.selected_index]
+            self.selected_index = None
+            self.update()
+
+    def _find_annotation_at(self, point: QPoint) -> Optional[int]:
+        """Find annotation at the given point (returns index or None)."""
+        # Search in reverse order (top-most first)
+        for i in range(len(self.annotations) - 1, -1, -1):
+            if self.annotations[i].contains_point(point):
+                return i
+        return None
 
     def add_text_annotation(self, pos: QPoint, text: str):
         """Add a text annotation at the given position."""
@@ -261,18 +330,14 @@ class AnnotationCanvas(QWidget):
     def apply_crop(self, rect: QRect):
         """Crop the base image to the given rectangle."""
         self._save_state()
-
-        # Crop the base pixmap
         self.base_pixmap = self.base_pixmap.copy(rect)
 
-        # Adjust all annotation positions
         offset = rect.topLeft()
         adjusted_annotations = []
         for ann in self.annotations:
             new_start = QPoint(ann.start.x() - offset.x(), ann.start.y() - offset.y())
             new_end = QPoint(ann.end.x() - offset.x(), ann.end.y() - offset.y())
 
-            # Only keep annotations that are at least partially in the crop area
             if new_start.x() >= -50 and new_start.y() >= -50:
                 ann_copy = ann.copy()
                 ann_copy.start = new_start
@@ -280,6 +345,7 @@ class AnnotationCanvas(QWidget):
                 adjusted_annotations.append(ann_copy)
 
         self.annotations = adjusted_annotations
+        self.selected_index = None
         self.setFixedSize(self.base_pixmap.size())
         self.update()
 
@@ -291,16 +357,11 @@ class AnnotationCanvas(QWidget):
         if rect.width() < 5 or rect.height() < 5:
             return
 
-        # Convert pixmap to image for pixel manipulation
         image = self.base_pixmap.toImage()
-
-        # Pixelation block size
         block_size = 10
 
-        # Process the region
         for y in range(rect.top(), rect.bottom(), block_size):
             for x in range(rect.left(), rect.right(), block_size):
-                # Calculate average color for this block
                 r_sum, g_sum, b_sum, count = 0, 0, 0, 0
 
                 for by in range(block_size):
@@ -316,7 +377,6 @@ class AnnotationCanvas(QWidget):
                 if count > 0:
                     avg_color = QColor(r_sum // count, g_sum // count, b_sum // count)
 
-                    # Fill block with average color
                     for by in range(block_size):
                         for bx in range(block_size):
                             px, py = x + bx, y + by
@@ -333,7 +393,7 @@ class AnnotationCanvas(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         for annotation in self.annotations:
-            self._draw_annotation(painter, annotation)
+            self._draw_annotation(painter, annotation, selected=False)
 
         painter.end()
         return result
@@ -343,18 +403,15 @@ class AnnotationCanvas(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Draw base image
         painter.drawPixmap(0, 0, self.base_pixmap)
 
-        # Draw all completed annotations
-        for annotation in self.annotations:
-            self._draw_annotation(painter, annotation)
+        for i, annotation in enumerate(self.annotations):
+            is_selected = (i == self.selected_index)
+            self._draw_annotation(painter, annotation, selected=is_selected)
 
-        # Draw current annotation being created
         if self.current_annotation:
-            self._draw_annotation(painter, self.current_annotation)
+            self._draw_annotation(painter, self.current_annotation, selected=False)
 
-            # For crop tool, dim the area outside the selection
             if self.current_annotation.tool == Tool.CROP:
                 self._draw_crop_overlay(painter, self.current_annotation)
 
@@ -364,20 +421,14 @@ class AnnotationCanvas(QWidget):
         """Draw semi-transparent overlay outside crop area."""
         rect = QRect(annotation.start, annotation.end).normalized()
         overlay = QColor(0, 0, 0, 150)
-
-        # Draw overlay on four sides of the crop rectangle
         canvas_rect = self.rect()
 
-        # Top
         painter.fillRect(QRect(0, 0, canvas_rect.width(), rect.top()), overlay)
-        # Bottom
         painter.fillRect(QRect(0, rect.bottom(), canvas_rect.width(), canvas_rect.height() - rect.bottom()), overlay)
-        # Left
         painter.fillRect(QRect(0, rect.top(), rect.left(), rect.height()), overlay)
-        # Right
         painter.fillRect(QRect(rect.right(), rect.top(), canvas_rect.width() - rect.right(), rect.height()), overlay)
 
-    def _draw_annotation(self, painter: QPainter, annotation: Annotation):
+    def _draw_annotation(self, painter: QPainter, annotation: Annotation, selected: bool = False):
         """Draw a single annotation."""
         if annotation.tool == Tool.ARROW:
             self._draw_arrow(painter, annotation)
@@ -392,6 +443,37 @@ class AnnotationCanvas(QWidget):
         elif annotation.tool == Tool.CROP:
             self._draw_crop_preview(painter, annotation)
 
+        # Draw selection highlight
+        if selected:
+            self._draw_selection_highlight(painter, annotation)
+
+    def _draw_selection_highlight(self, painter: QPainter, annotation: Annotation):
+        """Draw selection highlight around annotation."""
+        rect = annotation.get_bounding_rect()
+        pen = QPen(QColor("#0066FF"), 2, Qt.PenStyle.DashLine)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(rect)
+
+        # Draw corner handles
+        handle_size = 6
+        painter.setBrush(QBrush(QColor("#0066FF")))
+        painter.setPen(Qt.PenStyle.NoPen)
+
+        corners = [
+            rect.topLeft(),
+            rect.topRight(),
+            rect.bottomLeft(),
+            rect.bottomRight()
+        ]
+        for corner in corners:
+            painter.drawRect(
+                corner.x() - handle_size // 2,
+                corner.y() - handle_size // 2,
+                handle_size,
+                handle_size
+            )
+
     def _draw_arrow(self, painter: QPainter, annotation: Annotation):
         """Draw an arrow annotation."""
         pen = QPen(annotation.color, 3)
@@ -401,10 +483,8 @@ class AnnotationCanvas(QWidget):
         start = annotation.start
         end = annotation.end
 
-        # Draw main line
         painter.drawLine(start, end)
 
-        # Calculate arrow head
         dx = end.x() - start.x()
         dy = end.y() - start.y()
         length = math.sqrt(dx * dx + dy * dy)
@@ -489,7 +569,6 @@ class AnnotationCanvas(QWidget):
         rect = QRect(annotation.start, annotation.end).normalized()
         painter.drawRect(rect)
 
-        # Draw "BLUR" text in center
         font = QFont("Arial", 10)
         painter.setFont(font)
         painter.setPen(QColor("#666666"))
@@ -505,16 +584,28 @@ class AnnotationCanvas(QWidget):
         painter.drawRect(rect)
 
     def mousePressEvent(self, event):
-        """Handle mouse press to start annotation."""
+        """Handle mouse press."""
         if event.button() == Qt.MouseButton.LeftButton:
             pos = event.pos()
 
-            if self.current_tool == Tool.TEXT:
+            if self.current_tool == Tool.SELECT:
+                # Try to select an annotation
+                clicked_index = self._find_annotation_at(pos)
+                if clicked_index is not None:
+                    self.selected_index = clicked_index
+                    self.dragging = True
+                    self.drag_start = pos
+                else:
+                    self.selected_index = None
+                self.update()
+
+            elif self.current_tool == Tool.TEXT:
                 self._show_text_dialog(pos)
+
             elif self.current_tool == Tool.CALLOUT:
                 self.add_callout_annotation(pos)
+
             else:
-                # Start drawing
                 self.current_annotation = Annotation(
                     tool=self.current_tool,
                     color=QColor(self.current_color),
@@ -524,34 +615,69 @@ class AnnotationCanvas(QWidget):
                 self.update()
 
     def mouseMoveEvent(self, event):
-        """Handle mouse move to update annotation."""
-        if self.current_annotation:
-            self.current_annotation.end = event.pos()
+        """Handle mouse move."""
+        pos = event.pos()
+
+        if self.dragging and self.selected_index is not None and self.drag_start is not None:
+            # Move the selected annotation
+            delta = QPoint(pos.x() - self.drag_start.x(), pos.y() - self.drag_start.y())
+            self.annotations[self.selected_index].move_by(delta)
+            self.drag_start = pos
             self.update()
+
+        elif self.current_annotation:
+            self.current_annotation.end = pos
+            self.update()
+
+        # Update cursor based on hover state
+        if self.current_tool == Tool.SELECT:
+            if self._find_annotation_at(pos) is not None:
+                self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+            else:
+                self.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
 
     def mouseReleaseEvent(self, event):
-        """Handle mouse release to complete annotation."""
-        if event.button() == Qt.MouseButton.LeftButton and self.current_annotation:
-            self.current_annotation.end = event.pos()
-
-            start = self.current_annotation.start
-            end = self.current_annotation.end
-            rect = QRect(start, end).normalized()
-
-            # Check minimum size
-            if rect.width() > 5 or rect.height() > 5:
-                if self.current_annotation.tool == Tool.BLUR:
-                    self.apply_blur(rect)
-                elif self.current_annotation.tool == Tool.CROP:
-                    self.apply_crop(rect)
-                else:
+        """Handle mouse release."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self.dragging:
+                # Finish dragging - save state for undo
+                if self.drag_start is not None:
                     self._save_state()
-                    self.annotations.append(self.current_annotation)
+                self.dragging = False
+                self.drag_start = None
 
-            self.current_annotation = None
-            self.update()
+            elif self.current_annotation:
+                start = self.current_annotation.start
+                end = self.current_annotation.end
+                rect = QRect(start, end).normalized()
 
-    def _show_text_dialog(self, pos: QPoint):
+                if rect.width() > 5 or rect.height() > 5:
+                    if self.current_annotation.tool == Tool.BLUR:
+                        self.apply_blur(rect)
+                    elif self.current_annotation.tool == Tool.CROP:
+                        self.apply_crop(rect)
+                    else:
+                        self._save_state()
+                        self.annotations.append(self.current_annotation)
+
+                self.current_annotation = None
+                self.update()
+
+    def mouseDoubleClickEvent(self, event):
+        """Handle double-click for editing text annotations."""
+        if event.button() == Qt.MouseButton.LeftButton and self.current_tool == Tool.SELECT:
+            pos = event.pos()
+            clicked_index = self._find_annotation_at(pos)
+
+            if clicked_index is not None:
+                annotation = self.annotations[clicked_index]
+
+                if annotation.tool == Tool.TEXT:
+                    self._edit_text_annotation(clicked_index)
+                elif annotation.tool == Tool.CALLOUT:
+                    self._edit_callout_annotation(clicked_index)
+
+    def _show_text_dialog(self, pos: QPoint, initial_text: str = ""):
         """Show dialog to input text for annotation."""
         dialog = QDialog(self)
         dialog.setWindowTitle("Add Text")
@@ -562,6 +688,7 @@ class AnnotationCanvas(QWidget):
 
         text_input = QLineEdit()
         text_input.setMinimumWidth(250)
+        text_input.setText(initial_text)
         layout.addWidget(text_input)
 
         buttons = QDialogButtonBox(
@@ -575,13 +702,77 @@ class AnnotationCanvas(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted and text_input.text():
             self.add_text_annotation(pos, text_input.text())
 
+    def _edit_text_annotation(self, index: int):
+        """Edit an existing text annotation."""
+        annotation = self.annotations[index]
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Edit Text")
+        layout = QVBoxLayout(dialog)
+
+        label = QLabel("Edit annotation text:")
+        layout.addWidget(label)
+
+        text_input = QLineEdit()
+        text_input.setMinimumWidth(250)
+        text_input.setText(annotation.text)
+        text_input.selectAll()
+        layout.addWidget(text_input)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted and text_input.text():
+            self._save_state()
+            self.annotations[index].text = text_input.text()
+            self.update()
+
+    def _edit_callout_annotation(self, index: int):
+        """Edit an existing callout annotation number."""
+        annotation = self.annotations[index]
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Edit Callout")
+        layout = QVBoxLayout(dialog)
+
+        label = QLabel("Enter callout number:")
+        layout.addWidget(label)
+
+        text_input = QLineEdit()
+        text_input.setMinimumWidth(100)
+        text_input.setText(str(annotation.number))
+        text_input.selectAll()
+        layout.addWidget(text_input)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            try:
+                new_number = int(text_input.text())
+                self._save_state()
+                self.annotations[index].number = new_number
+                self.update()
+            except ValueError:
+                pass  # Invalid number, ignore
+
 
 class AnnotationEditor(QDialog):
     """
     Dialog for annotating screenshots.
 
     Provides tools for adding arrows, rectangles, text, numbered callouts,
-    blur regions, and cropping.
+    blur regions, and cropping. Supports selecting and moving annotations.
     """
 
     completed = pyqtSignal(str)
@@ -593,7 +784,6 @@ class AnnotationEditor(QDialog):
         self.setWindowTitle("Annotate Screenshot")
         self.setModal(True)
 
-        # Load the image
         self.original_pixmap = QPixmap(image_path)
         if self.original_pixmap.isNull():
             raise ValueError(f"Could not load image: {image_path}")
@@ -608,11 +798,9 @@ class AnnotationEditor(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
 
-        # Toolbar
         toolbar = self._create_toolbar()
         layout.addWidget(toolbar)
 
-        # Scrollable canvas area
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(False)
         self.scroll_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -621,7 +809,6 @@ class AnnotationEditor(QDialog):
         self.scroll_area.setWidget(self.canvas)
         layout.addWidget(self.scroll_area, 1)
 
-        # Bottom buttons
         bottom_bar = self._create_bottom_bar()
         layout.addWidget(bottom_bar)
 
@@ -639,7 +826,6 @@ class AnnotationEditor(QDialog):
         layout = QHBoxLayout(toolbar)
         layout.setContentsMargins(10, 5, 10, 5)
 
-        # Tool buttons
         tools_label = QLabel("Tools:")
         tools_label.setStyleSheet("font-weight: bold;")
         layout.addWidget(tools_label)
@@ -648,6 +834,7 @@ class AnnotationEditor(QDialog):
         self.tool_buttons = {}
 
         tools = [
+            ("☛ Select", Tool.SELECT),
             ("↗ Arrow", Tool.ARROW),
             ("▢ Rect", Tool.RECTANGLE),
             ("T Text", Tool.TEXT),
@@ -664,9 +851,8 @@ class AnnotationEditor(QDialog):
 
         self.tool_buttons[Tool.ARROW].setChecked(True)
 
-        layout.addSpacing(15)
+        layout.addSpacing(10)
 
-        # Color buttons
         colors_label = QLabel("Color:")
         colors_label.setStyleSheet("font-weight: bold;")
         layout.addWidget(colors_label)
@@ -675,11 +861,11 @@ class AnnotationEditor(QDialog):
         self.color_buttons = []
 
         colors = [
-            QColor("#FF0000"),  # Red
-            QColor("#00AA00"),  # Green
-            QColor("#0066FF"),  # Blue
-            QColor("#FF9900"),  # Orange
-            QColor("#9933FF"),  # Purple
+            QColor("#FF0000"),
+            QColor("#00AA00"),
+            QColor("#0066FF"),
+            QColor("#FF9900"),
+            QColor("#9933FF"),
         ]
 
         for color in colors:
@@ -692,7 +878,6 @@ class AnnotationEditor(QDialog):
 
         layout.addStretch()
 
-        # Undo/Redo buttons
         self.undo_btn = QPushButton("↶ Undo")
         self.undo_btn.setStyleSheet("""
             QPushButton {
@@ -702,13 +887,8 @@ class AnnotationEditor(QDialog):
                 border-radius: 4px;
                 background: #fff;
             }
-            QPushButton:hover {
-                background: #f0f0f0;
-            }
-            QPushButton:disabled {
-                color: #aaa;
-                background: #f5f5f5;
-            }
+            QPushButton:hover { background: #f0f0f0; }
+            QPushButton:disabled { color: #aaa; background: #f5f5f5; }
         """)
         layout.addWidget(self.undo_btn)
 
@@ -721,13 +901,8 @@ class AnnotationEditor(QDialog):
                 border-radius: 4px;
                 background: #fff;
             }
-            QPushButton:hover {
-                background: #f0f0f0;
-            }
-            QPushButton:disabled {
-                color: #aaa;
-                background: #f5f5f5;
-            }
+            QPushButton:hover { background: #f0f0f0; }
+            QPushButton:disabled { color: #aaa; background: #f5f5f5; }
         """)
         layout.addWidget(self.redo_btn)
 
@@ -738,18 +913,15 @@ class AnnotationEditor(QDialog):
         bar = QWidget()
         layout = QHBoxLayout(bar)
 
-        # Instructions
         self.instructions_label = QLabel(
-            "Arrow/Rect: Click and drag  •  "
-            "Text/Callout: Click to place  •  "
-            "Blur/Crop: Click and drag to select area"
+            "Select: Click to select, drag to move, double-click to edit  •  "
+            "Del key: Delete selected"
         )
         self.instructions_label.setStyleSheet("color: #666; font-size: 11px;")
         layout.addWidget(self.instructions_label)
 
         layout.addStretch()
 
-        # Cancel button
         cancel_btn = QPushButton("Cancel")
         cancel_btn.setStyleSheet("""
             QPushButton {
@@ -759,14 +931,11 @@ class AnnotationEditor(QDialog):
                 border-radius: 4px;
                 background: #f5f5f5;
             }
-            QPushButton:hover {
-                background: #e8e8e8;
-            }
+            QPushButton:hover { background: #e8e8e8; }
         """)
         cancel_btn.clicked.connect(self._on_cancel)
         layout.addWidget(cancel_btn)
 
-        # Save button
         save_btn = QPushButton("Save")
         save_btn.setStyleSheet("""
             QPushButton {
@@ -777,9 +946,7 @@ class AnnotationEditor(QDialog):
                 background: #4CAF50;
                 color: white;
             }
-            QPushButton:hover {
-                background: #45a049;
-            }
+            QPushButton:hover { background: #45a049; }
         """)
         save_btn.clicked.connect(self._on_save)
         layout.addWidget(save_btn)
@@ -821,13 +988,11 @@ class AnnotationEditor(QDialog):
     def _on_undo(self):
         """Handle undo button click."""
         self.canvas.undo()
-        # Update scroll area for potential size change from crop undo
         self.scroll_area.setWidget(self.canvas)
 
     def _on_redo(self):
         """Handle redo button click."""
         self.canvas.redo()
-        # Update scroll area for potential size change from crop redo
         self.scroll_area.setWidget(self.canvas)
 
     def _on_save(self):
@@ -844,3 +1009,10 @@ class AnnotationEditor(QDialog):
         """Cancel annotation editing."""
         self.cancelled.emit()
         self.reject()
+
+    def keyPressEvent(self, event):
+        """Handle key press events."""
+        if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
+            self.canvas.delete_selected()
+        else:
+            super().keyPressEvent(event)

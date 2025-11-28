@@ -41,8 +41,10 @@ A PyQt6 desktop application for creating step-by-step instruction paths with ann
 - **Rectangle Tool**: Click and drag to highlight areas with boxes
 - **Text Tool**: Click to place text labels with readable backgrounds
 - **Callout Tool**: Click to place numbered circles (①②③) that auto-increment
+- **Blur Tool**: Pixelate regions to hide sensitive data
+- **Crop Tool**: Trim screenshots to focus area
 - **Colors**: Red, Green, Blue, Orange, Purple
-- **Undo**: Remove last annotation
+- **Undo/Redo**: Full state-based history (up to 50 states)
 - **Save/Cancel**: Overwrites screenshot with annotations or keeps original
 
 ---
@@ -87,11 +89,19 @@ flowpath/
 
 ---
 
-## Future Features (Discussed)
+## Future Features (Backlog)
 
-- **Blur/Pixelate**: Hide sensitive data in screenshots
-- **Crop Tool**: Trim screenshots to focus area
-- **Undo/Redo Stack**: Full undo history (currently single undo)
+### Annotation Editor
+- **Movable/Editable Annotations**: Select and reposition text/callouts after placing
+
+### Path Viewer (PathReaderScreen)
+- **Layout Change**: Image should be on top and larger (not thumbnail)
+- **Presentation Mode**: Fullscreen slideshow view
+
+### Export & Sharing
+- Export path as PDF
+- Export as HTML
+- Import/export paths as JSON
 
 ---
 
