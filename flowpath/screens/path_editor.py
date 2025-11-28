@@ -81,11 +81,11 @@ class StepCard(QFrame):
 
         content_layout.addLayout(header_layout)
 
-        # Step instructions (compact, no toolbar)
-        self.instructions_input = MarkdownTextEdit(show_toolbar=False)
+        # Step instructions with formatting toolbar
+        self.instructions_input = MarkdownTextEdit()
         self.instructions_input.setPlaceholderText(f"Step {step_number} instructions...")
-        self.instructions_input.setMinimumHeight(80)
-        self.instructions_input.setMaximumHeight(100)
+        self.instructions_input.setMinimumHeight(100)
+        self.instructions_input.setMaximumHeight(130)
 
         # Load existing instructions
         if step:
