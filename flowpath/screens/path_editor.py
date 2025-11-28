@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QLineEdit, QTextEdit, QComboBox,
+    QPushButton, QLineEdit, QComboBox,
     QFrame, QScrollArea, QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -8,6 +8,7 @@ from PyQt6.QtGui import QPixmap
 
 from ..services import DataService
 from ..models import Path, Step
+from ..widgets import MarkdownTextEdit
 
 
 class StepCard(QFrame):
@@ -80,16 +81,9 @@ class StepCard(QFrame):
 
         content_layout.addLayout(header_layout)
 
-        # Step instructions
-        self.instructions_input = QTextEdit()
+        # Step instructions (compact, no toolbar)
+        self.instructions_input = MarkdownTextEdit(show_toolbar=False)
         self.instructions_input.setPlaceholderText(f"Step {step_number} instructions...")
-        self.instructions_input.setStyleSheet("""
-            QTextEdit {
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                padding: 8px;
-            }
-        """)
         self.instructions_input.setMinimumHeight(80)
         self.instructions_input.setMaximumHeight(100)
 
@@ -238,17 +232,9 @@ class PathEditorScreen(QWidget):
         form_layout.addWidget(self.tags_input)
 
         # Description
-        self.description_input = QTextEdit()
-        self.description_input.setPlaceholderText("Description")
-        self.description_input.setStyleSheet("""
-            QTextEdit {
-                padding: 10px;
-                font-size: 14px;
-                border: 2px solid #ccc;
-                border-radius: 4px;
-            }
-        """)
-        self.description_input.setMaximumHeight(100)
+        self.description_input = MarkdownTextEdit()
+        self.description_input.setPlaceholderText("Description (supports **bold**, *italic*, [links](url))")
+        self.description_input.setMaximumHeight(130)
         form_layout.addWidget(self.description_input)
 
         form_layout.addStretch()

@@ -7,6 +7,7 @@ from PyQt6.QtGui import QPixmap
 
 from ..services import DataService
 from ..models import Path, Step
+from ..widgets import MarkdownLabel
 
 
 class ReaderStepCard(QFrame):
@@ -59,8 +60,9 @@ class ReaderStepCard(QFrame):
         step_label = QLabel(f"Step {step.step_number}")
         step_label.setStyleSheet("font-weight: bold; font-size: 16px; color: #333;")
 
-        instructions_label = QLabel(step.instructions or "No instructions provided.")
-        instructions_label.setWordWrap(True)
+        # Use MarkdownLabel to render formatted instructions
+        instructions_label = MarkdownLabel()
+        instructions_label.setMarkdown(step.instructions or "No instructions provided.")
         instructions_label.setStyleSheet("font-size: 14px; color: #444; padding: 10px 0;")
 
         content_layout.addWidget(step_label)
@@ -197,9 +199,8 @@ class PathReaderScreen(QWidget):
 
         self.main_layout.addLayout(meta_layout)
 
-        # Description
-        self.description_label = QLabel("")
-        self.description_label.setWordWrap(True)
+        # Description (renders Markdown)
+        self.description_label = MarkdownLabel()
         self.description_label.setStyleSheet("color: #555; font-size: 13px; padding: 10px 0;")
         self.main_layout.addWidget(self.description_label)
 
@@ -241,7 +242,7 @@ class PathReaderScreen(QWidget):
         self.title_label.setText(path.title)
         self.category_label.setText(f"Category: {path.category or 'None'}")
         self.tags_label.setText(f"Tags: {path.tags or 'None'}")
-        self.description_label.setText(path.description)
+        self.description_label.setMarkdown(path.description or "")
         self.description_label.setVisible(bool(path.description))
 
         # Show/hide edit button based on creator

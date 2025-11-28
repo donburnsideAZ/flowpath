@@ -1,10 +1,11 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QTextEdit, QFrame, QMessageBox
+    QPushButton, QFrame, QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 
 from ..models import Step
+from ..widgets import MarkdownTextEdit
 
 
 class StepCreatorScreen(QWidget):
@@ -137,21 +138,10 @@ class StepCreatorScreen(QWidget):
         main_layout.addSpacing(20)
 
         # === STEP INSTRUCTIONS ===
-        self.instructions_input = QTextEdit()
-        self.instructions_input.setPlaceholderText("Step instructions...")
-        self.instructions_input.setStyleSheet("""
-            QTextEdit {
-                padding: 15px;
-                font-size: 14px;
-                border: 2px solid #ccc;
-                border-radius: 8px;
-            }
-            QTextEdit:focus {
-                border-color: #4CAF50;
-            }
-        """)
+        self.instructions_input = MarkdownTextEdit()
+        self.instructions_input.setPlaceholderText("Step instructions... (use **bold**, *italic*, [link](url))")
         self.instructions_input.setMinimumHeight(120)
-        self.instructions_input.setMaximumHeight(150)
+        self.instructions_input.setMaximumHeight(180)
 
         main_layout.addWidget(self.instructions_input)
         main_layout.addStretch()
