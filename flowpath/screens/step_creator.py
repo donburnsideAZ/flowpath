@@ -3,12 +3,14 @@ from PyQt6.QtWidgets import (
     QPushButton, QTextEdit, QFrame
 )
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPixmap
 
 
 class StepCreatorScreen(QWidget):
     def __init__(self):
         super().__init__()
         self.screenshot_path = None
+        self.original_pixmap = None  # Store original for rescaling
         self.setup_ui()
     
     def setup_ui(self):
@@ -132,7 +134,11 @@ class StepCreatorScreen(QWidget):
         self.setLayout(main_layout)
     
     def capture_screenshot(self):
-        """Placeholder for screenshot capture - we'll implement this next"""
+        """Placeholder for screenshot capture - we'll implement this next
+
+        Once you have a QPixmap from your capture, call:
+            self.display_screenshot(pixmap)
+        """
         self.screenshot_label.setText("Screenshot captured!\n(Capture functionality coming soon)")
         self.screenshot_label.setStyleSheet("color: #4CAF50; font-size: 16px; border: none;")
     
@@ -142,3 +148,40 @@ class StepCreatorScreen(QWidget):
         self.screenshot_label.setStyleSheet("color: #999; font-size: 16px; border: none;")
         self.instructions_input.clear()
         self.screenshot_path = None
+        self.original_pixmap = None
+
+    def display_screenshot(self, pixmap):
+        """Display a screenshot scaled to fit within the container"""
+        self.original_pixmap = pixmap
+        self._update_scaled_pixmap()
+
+    def _update_scaled_pixmap(self):
+        """Scale the pixmap to fit within the screenshot frame"""
+        if self.original_pixmap is None:
+            return
+
+        # Get available size from the frame (with some padding)
+        available_width = self.screenshot_frame.width() - 20
+        available_height = self.screenshot_frame.height() - 20
+
+        # Ensure minimum dimensions
+        if available_width < 100 or available_height < 100:
+            available_width = max(available_width, 100)
+            available_height = max(available_height, 100)
+
+        # Scale pixmap to fit while maintaining aspect ratio
+        scaled_pixmap = self.original_pixmap.scaled(
+            available_width,
+            available_height,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation
+        )
+
+        self.screenshot_label.setPixmap(scaled_pixmap)
+        self.screenshot_label.setStyleSheet("border: none;")
+
+    def resizeEvent(self, event):
+        """Handle window resize to rescale screenshot"""
+        super().resizeEvent(event)
+        if self.original_pixmap is not None:
+            self._update_scaled_pixmap()

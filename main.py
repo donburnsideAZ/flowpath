@@ -1,5 +1,6 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget
+from PyQt6.QtGui import QScreen
 from flowpath.screens.home import HomeScreen
 from flowpath.screens.path_editor import PathEditorScreen
 from flowpath.screens.step_creator import StepCreatorScreen
@@ -10,7 +11,17 @@ class FlowPathWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FlowPath")
-        self.setGeometry(100, 100, 1000, 700)
+
+        # Set window size to 50% of available screen
+        screen = QApplication.primaryScreen()
+        screen_geometry = screen.availableGeometry()
+        width = int(screen_geometry.width() * 0.5)
+        height = int(screen_geometry.height() * 0.5)
+
+        # Center the window on screen
+        x = (screen_geometry.width() - width) // 2
+        y = (screen_geometry.height() - height) // 2
+        self.setGeometry(x, y, width, height)
         
         # Stack to hold all screens
         self.stack = QStackedWidget()
