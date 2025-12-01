@@ -4,6 +4,7 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget
 
+from flowpath import __version__
 from flowpath.screens.home import HomeScreen
 from flowpath.screens.path_editor import PathEditorScreen
 from flowpath.screens.step_creator import StepCreatorScreen
@@ -21,7 +22,7 @@ class FlowPathWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("FlowPath")
+        self.setWindowTitle(f"FlowPath v{__version__}")
         self.setGeometry(100, 100, 1000, 700)
 
         # Stack to hold all screens
@@ -109,6 +110,11 @@ class FlowPathWindow(QMainWindow):
 
 def main():
     """Application entry point."""
+    # Handle --version flag before creating QApplication
+    if "--version" in sys.argv or "-v" in sys.argv:
+        print(f"FlowPath v{__version__}")
+        sys.exit(0)
+
     app = QApplication(sys.argv)
 
     # Set application-wide styling
