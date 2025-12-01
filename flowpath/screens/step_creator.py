@@ -120,6 +120,10 @@ class StepCreatorScreen(QWidget):
         """Capture a screenshot of the entire screen."""
         # Hide the window briefly to capture clean screenshot
         main_window = self.window()
+        if main_window is None:
+            self.screenshot_label.setText("Failed to capture screenshot\n(Window not available)")
+            self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
+            return
         main_window.hide()
 
         # Small delay to ensure window is hidden
@@ -134,13 +138,23 @@ class StepCreatorScreen(QWidget):
                 # Capture the entire screen
                 self.screenshot_pixmap = screen.grabWindow(0)
 
+                # Validate the captured pixmap
+                if self.screenshot_pixmap is None or self.screenshot_pixmap.isNull():
+                    self.screenshot_label.setText("Failed to capture screenshot\n(Screen capture returned empty image)")
+                    self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
+                    return
+
                 # Generate unique filename
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"screenshot_{timestamp}_{uuid.uuid4().hex[:8]}.png"
                 self.screenshot_path = self.data_store.get_screenshot_path(filename)
 
                 # Save the screenshot
-                self.screenshot_pixmap.save(self.screenshot_path, "PNG")
+                if not self.screenshot_pixmap.save(self.screenshot_path, "PNG"):
+                    self.screenshot_label.setText("Failed to save screenshot\n(Could not write to file)")
+                    self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
+                    self.screenshot_path = None
+                    return
 
                 # Display scaled preview
                 scaled = self.screenshot_pixmap.scaled(
@@ -162,9 +176,10 @@ class StepCreatorScreen(QWidget):
         finally:
             # Show the window again
             main_window = self.window()
-            main_window.show()
-            main_window.raise_()
-            main_window.activateWindow()
+            if main_window is not None:
+                main_window.show()
+                main_window.raise_()
+                main_window.activateWindow()
 
     def _clear_screenshot(self):
         """Clear the current screenshot."""
@@ -172,8 +187,8 @@ class StepCreatorScreen(QWidget):
         if self.screenshot_path and os.path.exists(self.screenshot_path):
             try:
                 os.remove(self.screenshot_path)
-            except:
-                pass
+            except OSError:
+                pass  # Ignore file deletion errors (permissions, file in use, etc.)
 
         self.screenshot_path = None
         self.screenshot_pixmap = None
