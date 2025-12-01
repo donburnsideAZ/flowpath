@@ -1,6 +1,8 @@
 """Step creator screen - create individual workflow steps with screenshots."""
 
 import os
+import subprocess
+import sys
 import uuid
 from datetime import datetime
 
@@ -132,26 +134,50 @@ class StepCreatorScreen(QWidget):
     def _do_capture(self):
         """Actually perform the screenshot capture."""
         try:
-            # Get the primary screen
-            screen = QApplication.primaryScreen()
-            if screen:
-                # Capture the entire screen
-                self.screenshot_pixmap = screen.grabWindow(0)
+            # Generate unique filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"screenshot_{timestamp}_{uuid.uuid4().hex[:8]}.png"
+            self.screenshot_path = self.data_store.get_screenshot_path(filename)
 
-                # Validate the captured pixmap
-                if self.screenshot_pixmap is None or self.screenshot_pixmap.isNull():
-                    self.screenshot_label.setText("Failed to capture screenshot\n(Screen capture returned empty image)")
+            # Use native macOS screencapture command
+            if sys.platform == "darwin":
+                # -x: no sound, captures entire screen
+                result = subprocess.run(
+                    ["screencapture", "-x", self.screenshot_path],
+                    capture_output=True,
+                    timeout=10
+                )
+                if result.returncode != 0:
+                    self.screenshot_label.setText("Failed to capture screenshot\n(screencapture command failed)")
                     self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
+                    self.screenshot_path = None
+                    return
+            else:
+                # Fallback for non-macOS: use PyQt (Linux/Windows)
+                screen = QApplication.primaryScreen()
+                if screen:
+                    pixmap = screen.grabWindow(0)
+                    if pixmap is None or pixmap.isNull():
+                        self.screenshot_label.setText("Failed to capture screenshot\n(Screen capture returned empty image)")
+                        self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
+                        self.screenshot_path = None
+                        return
+                    if not pixmap.save(self.screenshot_path, "PNG"):
+                        self.screenshot_label.setText("Failed to save screenshot\n(Could not write to file)")
+                        self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
+                        self.screenshot_path = None
+                        return
+                else:
+                    self.screenshot_label.setText("Failed to capture screenshot\n(No screen available)")
+                    self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
+                    self.screenshot_path = None
                     return
 
-                # Generate unique filename
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"screenshot_{timestamp}_{uuid.uuid4().hex[:8]}.png"
-                self.screenshot_path = self.data_store.get_screenshot_path(filename)
-
-                # Save the screenshot
-                if not self.screenshot_pixmap.save(self.screenshot_path, "PNG"):
-                    self.screenshot_label.setText("Failed to save screenshot\n(Could not write to file)")
+            # Load and display the screenshot
+            if os.path.exists(self.screenshot_path):
+                self.screenshot_pixmap = QPixmap(self.screenshot_path)
+                if self.screenshot_pixmap.isNull():
+                    self.screenshot_label.setText("Failed to load screenshot\n(Image file could not be read)")
                     self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
                     self.screenshot_path = None
                     return
@@ -168,11 +194,17 @@ class StepCreatorScreen(QWidget):
                 # Show clear button
                 self.clear_screenshot_btn.setVisible(True)
             else:
-                self.screenshot_label.setText("Failed to capture screenshot\n(No screen available)")
+                self.screenshot_label.setText("Failed to capture screenshot\n(Screenshot file was not created)")
                 self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
+                self.screenshot_path = None
+        except subprocess.TimeoutExpired:
+            self.screenshot_label.setText("Screenshot timed out\n(screencapture took too long)")
+            self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
+            self.screenshot_path = None
         except Exception as e:
             self.screenshot_label.setText(f"Screenshot error:\n{str(e)}")
             self.screenshot_label.setStyleSheet("color: #f44336; font-size: 16px; border: none;")
+            self.screenshot_path = None
         finally:
             # Show the window again
             main_window = self.window()
