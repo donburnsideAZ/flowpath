@@ -10,6 +10,11 @@
       "action": "ignored",
       "timestamp": "2025-12-02T18:53:15.790922",
       "last_commit": "d85f137d60e0"
+    },
+    "origin/claude/flowpath-code-review-0157Qx1LWgCDDWqRagect2ed": {
+      "action": "ignored",
+      "timestamp": "2025-12-02T18:53:17.274512",
+      "last_commit": "f5753fa3964b"
     }
   }
 }
