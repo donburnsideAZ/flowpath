@@ -1,5 +1,7 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget
+from PyQt6.QtGui import QPalette, QColor
+from PyQt6.QtCore import Qt
 
 from flowpath.screens.home import HomeScreen
 from flowpath.screens.path_editor import PathEditorScreen
@@ -145,8 +147,54 @@ class FlowPathWindow(QMainWindow):
         self._show_home()
 
 
+def create_light_palette() -> QPalette:
+    """Create a light mode palette for consistent styling."""
+    palette = QPalette()
+    
+    # Window and widget backgrounds
+    palette.setColor(QPalette.ColorRole.Window, QColor(255, 255, 255))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
+    palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
+    
+    # Text colors
+    palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
+    palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 255, 255))
+    palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(128, 128, 128))
+    
+    # Button colors
+    palette.setColor(QPalette.ColorRole.Button, QColor(240, 240, 240))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
+    
+    # Highlight colors
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(76, 175, 80))  # FlowPath green
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+    
+    # Tooltip colors
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 220))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(0, 0, 0))
+    
+    # Link colors
+    palette.setColor(QPalette.ColorRole.Link, QColor(0, 102, 204))
+    palette.setColor(QPalette.ColorRole.LinkVisited, QColor(102, 51, 153))
+    
+    # Disabled state colors
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(128, 128, 128))
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(128, 128, 128))
+    palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(128, 128, 128))
+    
+    return palette
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    
+    # Force Fusion style for consistent cross-platform appearance
+    app.setStyle('Fusion')
+    
+    # Apply light mode palette to override system dark mode
+    app.setPalette(create_light_palette())
+    
     window = FlowPathWindow()
     window.show()
     sys.exit(app.exec())
