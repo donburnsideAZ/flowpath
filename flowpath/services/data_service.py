@@ -5,8 +5,10 @@ Provides a centralized, singleton-style access point for all data operations.
 This is the primary interface that UI components use to interact with the database.
 """
 
+import os
+from pathlib import Path as FilePath
 from typing import List, Optional, Tuple
-from ..models import Path, Step
+from ..models import Path, Step, LegacyDocument, LEGACY_EXTENSIONS
 from ..data import Database, PathRepository, StepRepository
 
 
@@ -48,6 +50,17 @@ class DataService:
         self.db.initialize()
         self._path_repo = PathRepository(self.db)
         self._step_repo = StepRepository(self.db)
+        self._team_folder: Optional[str] = None
+
+    @property
+    def team_folder(self) -> Optional[str]:
+        """Get the current team folder path."""
+        return self._team_folder
+    
+    @team_folder.setter
+    def team_folder(self, path: Optional[str]) -> None:
+        """Set the team folder path."""
+        self._team_folder = path
 
     @classmethod
     def instance(cls, db_path: Optional[str] = None) -> 'DataService':
@@ -365,3 +378,66 @@ class DataService:
             self.create_step(new_step)
 
         return new_path_id
+
+    # ==================== Legacy Document Operations ====================
+
+    def get_legacy_documents(self) -> List[LegacyDocument]:
+        """
+        Scan the team folder for legacy documents.
+        
+        Returns:
+            List of LegacyDocument objects found in the team folder
+        """
+        if not self._team_folder or not os.path.isdir(self._team_folder):
+            return []
+        
+        legacy_docs = []
+        team_path = FilePath(self._team_folder)
+        
+        # Scan for legacy files (not in paths/ subdirectory, not .md files)
+        for item in team_path.iterdir():
+            if item.is_file():
+                # Skip markdown files (those are FlowPath paths)
+                if item.suffix.lower() == '.md':
+                    continue
+                # Skip hidden files
+                if item.name.startswith('.'):
+                    continue
+                # Skip JSON config files
+                if item.suffix.lower() == '.json':
+                    continue
+                    
+                doc = LegacyDocument.from_path(str(item))
+                if doc:
+                    legacy_docs.append(doc)
+        
+        # Sort by modified date, newest first
+        legacy_docs.sort(key=lambda d: d.modified_at, reverse=True)
+        return legacy_docs
+
+    def search_legacy_documents(self, query: str) -> List[LegacyDocument]:
+        """
+        Search legacy documents by filename.
+        
+        Args:
+            query: Search string to match against filenames
+            
+        Returns:
+            List of matching LegacyDocument objects
+        """
+        query_lower = query.lower()
+        all_docs = self.get_legacy_documents()
+        return [doc for doc in all_docs if query_lower in doc.filename.lower()]
+
+    def get_legacy_documents_by_type(self, file_type: str) -> List[LegacyDocument]:
+        """
+        Get legacy documents filtered by type.
+        
+        Args:
+            file_type: Type to filter by (word, pdf, powerpoint, etc.)
+            
+        Returns:
+            List of LegacyDocument objects of the specified type
+        """
+        all_docs = self.get_legacy_documents()
+        return [doc for doc in all_docs if doc.file_type == file_type]

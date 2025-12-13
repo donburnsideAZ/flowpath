@@ -1,7 +1,10 @@
 import sys
-from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget
-from PyQt6.QtGui import QPalette, QColor
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QStackedWidget, 
+    QMenuBar, QMenu, QFileDialog, QMessageBox
+)
+from PyQt6.QtGui import QPalette, QColor, QAction
+from PyQt6.QtCore import Qt, QSettings
 
 from flowpath.screens.home import HomeScreen
 from flowpath.screens.path_editor import PathEditorScreen
@@ -26,10 +29,16 @@ class FlowPathWindow(QMainWindow):
 
         # Initialize data service (singleton)
         self.data_service = DataService.instance()
+        
+        # Load settings
+        self.settings = QSettings("FlowPath", "FlowPath")
 
         # Stack to hold all screens
         self.stack = QStackedWidget()
         self.setCentralWidget(self.stack)
+        
+        # Create menu bar
+        self._create_menu_bar()
 
         # Create screens
         self.home_screen = HomeScreen()
@@ -48,6 +57,90 @@ class FlowPathWindow(QMainWindow):
         self._connect_path_editor_screen()
         self._connect_step_creator_screen()
         self._connect_path_reader_screen()
+        
+        # Load saved team folder
+        self._load_team_folder()
+
+    def _create_menu_bar(self):
+        """Create the application menu bar."""
+        menubar = self.menuBar()
+        
+        # FlowPath menu (or File menu on Windows/Linux)
+        file_menu = menubar.addMenu("FlowPath")
+        
+        # Team Folder action
+        team_folder_action = QAction("Set Team Folder...", self)
+        team_folder_action.setShortcut("Ctrl+,")
+        team_folder_action.triggered.connect(self._on_set_team_folder)
+        file_menu.addAction(team_folder_action)
+        
+        # Show current team folder
+        self.show_folder_action = QAction("Show Team Folder", self)
+        self.show_folder_action.triggered.connect(self._on_show_team_folder)
+        file_menu.addAction(self.show_folder_action)
+        
+        file_menu.addSeparator()
+        
+        # About action
+        about_action = QAction("About FlowPath", self)
+        about_action.triggered.connect(self._on_about)
+        file_menu.addAction(about_action)
+
+    def _load_team_folder(self):
+        """Load the saved team folder setting."""
+        team_folder = self.settings.value("team_folder", "")
+        if team_folder:
+            self.home_screen.set_team_folder(team_folder)
+            self._update_window_title(team_folder)
+
+    def _on_set_team_folder(self):
+        """Handle Set Team Folder menu action."""
+        current_folder = self.settings.value("team_folder", "")
+        
+        folder = QFileDialog.getExistingDirectory(
+            self,
+            "Select Team Folder",
+            current_folder,
+            QFileDialog.Option.ShowDirsOnly
+        )
+        
+        if folder:
+            self.settings.setValue("team_folder", folder)
+            self.home_screen.set_team_folder(folder)
+            self._update_window_title(folder)
+
+    def _on_show_team_folder(self):
+        """Show the current team folder location."""
+        team_folder = self.settings.value("team_folder", "")
+        if team_folder:
+            QMessageBox.information(
+                self,
+                "Team Folder",
+                f"Current team folder:\n\n{team_folder}"
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Team Folder",
+                "No team folder set.\n\nUse FlowPath → Set Team Folder to configure."
+            )
+
+    def _on_about(self):
+        """Show About dialog."""
+        QMessageBox.about(
+            self,
+            "About FlowPath",
+            "FlowPath\n\n"
+            "A cross-platform tool for creating step-by-step\n"
+            "documentation and SOPs.\n\n"
+            "Version 0.1.0"
+        )
+
+    def _update_window_title(self, team_folder: str):
+        """Update window title to show team folder."""
+        import os
+        folder_name = os.path.basename(team_folder)
+        self.setWindowTitle(f"FlowPath - {folder_name}")
 
     def _connect_home_screen(self):
         """Connect Home screen signals."""

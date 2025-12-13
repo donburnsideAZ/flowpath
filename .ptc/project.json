@@ -4,5 +4,12 @@
   "description": "Imported from Flowpath",
   "python_version": "3.11",
   "created": "2025-12-13T06:00:20.713286",
-  "github_repo": null
+  "github_repo": null,
+  "handled_branches": {
+    "origin/claude/fix-flow-path-crash-01EFVJ6f6687hqSvj6MFNFhE": {
+      "action": "ignored",
+      "timestamp": "2025-12-13T06:00:27.990130",
+      "last_commit": "d85f137d60e0"
+    }
+  }
 }
