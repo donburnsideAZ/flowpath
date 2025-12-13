@@ -20,6 +20,11 @@
       "action": "ignored",
       "timestamp": "2025-12-13T06:01:26.577631",
       "last_commit": "802bd673e5ab"
+    },
+    "origin/claude/verify-flowpath-git-setup-01PwGwWwTUR9exW9spgEmMfy": {
+      "action": "ignored",
+      "timestamp": "2025-12-13T06:01:28.113649",
+      "last_commit": "c5d859f8ca8a"
     }
   }
 }
