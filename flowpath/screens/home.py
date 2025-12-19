@@ -78,8 +78,7 @@ class PathListRow(QFrame):
         # Title (main content - takes most space, with elide for long text)
         title_label = QLabel(path.title)
         title_label.setStyleSheet("""
-            font-weight: bold;
-            font-size: 13px;
+            font-size: 14px;
             color: #333333;
             background: transparent;
         """)
@@ -205,8 +204,7 @@ class LegacyDocListRow(QFrame):
         # Filename (main content - takes most space)
         filename_label = QLabel(doc.filename)
         filename_label.setStyleSheet("""
-            font-weight: bold;
-            font-size: 13px;
+            font-size: 14px;
             color: #333333;
             background: transparent;
         """)
@@ -614,7 +612,7 @@ class CollapsibleSection(QFrame):
 
         # Title
         self.title_label = QLabel(title)
-        self.title_label.setStyleSheet(f"font-weight: bold; font-size: 13px; color: {COLOR_TEXT_SECONDARY};")
+        self.title_label.setStyleSheet(f"font-size: 14px; color: {COLOR_TEXT_SECONDARY};")
         header_layout.addWidget(self.title_label)
 
         header_layout.addStretch()
