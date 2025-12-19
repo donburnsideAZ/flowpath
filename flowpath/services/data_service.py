@@ -623,3 +623,48 @@ class DataService:
                 (f"%{tag_name}%",)
             )
             return cursor.fetchone()[0]
+
+    # ==================== Settings Operations ====================
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        """
+        Get a setting value.
+
+        Args:
+            key: Setting key
+            default: Default value if not found
+
+        Returns:
+            Setting value or default
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "SELECT value FROM settings WHERE key = ?",
+                (key,)
+            )
+            row = cursor.fetchone()
+            return row[0] if row else default
+
+    def set_setting(self, key: str, value: str) -> None:
+        """
+        Set a setting value.
+
+        Args:
+            key: Setting key
+            value: Setting value
+        """
+        with self.db.connection() as conn:
+            conn.execute(
+                """INSERT INTO settings (key, value, updated_at) 
+                   VALUES (?, ?, CURRENT_TIMESTAMP)
+                   ON CONFLICT(key) DO UPDATE SET value = ?, updated_at = CURRENT_TIMESTAMP""",
+                (key, value, value)
+            )
+
+    def get_team_name(self) -> str:
+        """Get the team name setting."""
+        return self.get_setting("team_name", "My Team")
+
+    def set_team_name(self, name: str) -> None:
+        """Set the team name setting."""
+        self.set_setting("team_name", name)

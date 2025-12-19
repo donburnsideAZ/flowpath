@@ -67,7 +67,7 @@ class StepCard(QFrame):
                 color: white;
                 border: none;
                 padding: 4px 12px;
-                font-size: 11px;
+                font-size: 14px;
                 border-radius: 3px;
             }
             QPushButton:hover {
@@ -184,7 +184,7 @@ class EmptyStateWidget(QWidget):
         # Main message
         painter.setPen(QColor("#333"))
         font = QFont()
-        font.setPointSize(16)
+        font.setPixelSize(18)
         font.setBold(True)
         painter.setFont(font)
 
@@ -194,7 +194,7 @@ class EmptyStateWidget(QWidget):
 
         # Sub message
         painter.setPen(QColor("#666"))
-        font.setPointSize(12)
+        font.setPixelSize(14)
         font.setBold(False)
         painter.setFont(font)
 
@@ -209,7 +209,7 @@ class EmptyStateWidget(QWidget):
             "Tip: Minimize distractions before capturing screenshots"
         ]
 
-        font.setPointSize(11)
+        font.setPixelSize(14)
         font.setItalic(True)
         painter.setFont(font)
         painter.setPen(QColor("#888"))
@@ -284,74 +284,64 @@ class PathEditorScreen(QWidget):
 
     def setup_ui(self):
         main_layout = QVBoxLayout()
-
-        # === TOP BAR ===
-        top_bar = QHBoxLayout()
-
-        self.title_label = QLabel("New Path")
-        self.title_label.setStyleSheet("font-size: 20px; font-weight: bold;")
-        top_bar.addWidget(self.title_label)
-
-        top_bar.addStretch()
-
-        # Cancel button
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f0f0f0;
-                color: #333;
-                border: 1px solid #ccc;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #e0e0e0;
-            }
-        """)
-        cancel_btn.clicked.connect(self._on_cancel)
-
-        # Save buttons
-        self.save_done_btn = QPushButton("Save && Done")
-        self.save_done_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #666;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #555;
-            }
-        """)
-        self.save_done_btn.clicked.connect(self._on_save_done)
-
-        save_new_btn = QPushButton("Save && New")
-        save_new_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #666;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #555;
-            }
-        """)
-        save_new_btn.clicked.connect(self._on_save_new)
-
-        top_bar.addWidget(cancel_btn)
-        top_bar.addWidget(self.save_done_btn)
-        top_bar.addWidget(save_new_btn)
-
-        main_layout.addLayout(top_bar)
+        main_layout.setContentsMargins(20, 20, 20, 20)
 
         # === FORM AND STEPS AREA ===
         content_layout = QHBoxLayout()
+        content_layout.setSpacing(24)
 
-        # Left side: metadata form
+        # Left side: metadata form and actions
         form_layout = QVBoxLayout()
+        form_layout.setSpacing(12)
+
+        # Header with title and action buttons
+        header_layout = QHBoxLayout()
+        
+        self.title_label = QLabel("New Path")
+        self.title_label.setStyleSheet("font-size: 20px; font-weight: bold;")
+        header_layout.addWidget(self.title_label)
+        
+        header_layout.addStretch()
+        
+        # Cancel button (subtle)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #666;
+                border: 1px solid #ccc;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+            }
+        """)
+        cancel_btn.clicked.connect(self._on_cancel)
+        header_layout.addWidget(cancel_btn)
+
+        # Save button
+        self.save_done_btn = QPushButton("Save")
+        self.save_done_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 6px 16px;
+                border-radius: 4px;
+                font-size: 14px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        self.save_done_btn.clicked.connect(self._on_save_done)
+        header_layout.addWidget(self.save_done_btn)
+
+        form_layout.addLayout(header_layout)
+        form_layout.addSpacing(8)
 
         # Title
         self.title_input = QLineEdit()
@@ -360,8 +350,11 @@ class PathEditorScreen(QWidget):
             QLineEdit {
                 padding: 10px;
                 font-size: 14px;
-                border: 2px solid #ccc;
+                border: 1px solid #ccc;
                 border-radius: 4px;
+            }
+            QLineEdit:focus {
+                border-color: #4CAF50;
             }
         """)
         form_layout.addWidget(self.title_input)
@@ -372,8 +365,11 @@ class PathEditorScreen(QWidget):
             QComboBox {
                 padding: 10px;
                 font-size: 14px;
-                border: 2px solid #ccc;
+                border: 1px solid #ccc;
                 border-radius: 4px;
+            }
+            QComboBox QAbstractItemView {
+                font-size: 14px;
             }
         """)
         form_layout.addWidget(self.category_combo)
@@ -385,8 +381,11 @@ class PathEditorScreen(QWidget):
             QLineEdit {
                 padding: 10px;
                 font-size: 14px;
-                border: 2px solid #ccc;
+                border: 1px solid #ccc;
                 border-radius: 4px;
+            }
+            QLineEdit:focus {
+                border-color: #4CAF50;
             }
         """)
         form_layout.addWidget(self.tags_input)
@@ -394,40 +393,37 @@ class PathEditorScreen(QWidget):
         # Description
         self.description_input = MarkdownTextEdit()
         self.description_input.setPlaceholderText("Description (supports **bold**, *italic*, [links](url))")
-        self.description_input.setMaximumHeight(130)
+        self.description_input.setMaximumHeight(120)
         form_layout.addWidget(self.description_input)
 
-        form_layout.addStretch()
-
-        form_widget = QWidget()
-        form_widget.setLayout(form_layout)
-        form_widget.setFixedWidth(250)
-
-        # Right side: steps area
-        steps_layout = QVBoxLayout()
-
-        # +Step button (prominent style for empty state)
+        # + Add Step button (below form fields)
         self.add_step_btn = QPushButton("+ Add First Step")
         self.add_step_btn.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
                 border: none;
-                padding: 14px 28px;
-                font-size: 15px;
+                padding: 12px 24px;
+                font-size: 14px;
                 font-weight: bold;
-                border-radius: 8px;
+                border-radius: 6px;
             }
             QPushButton:hover {
                 background-color: #45a049;
             }
         """)
         self.add_step_btn.clicked.connect(self._on_add_step)
+        form_layout.addWidget(self.add_step_btn)
 
-        steps_header = QHBoxLayout()
-        steps_header.addStretch()
-        steps_header.addWidget(self.add_step_btn)
-        steps_layout.addLayout(steps_header)
+        form_layout.addStretch()
+
+        form_widget = QWidget()
+        form_widget.setLayout(form_layout)
+        form_widget.setFixedWidth(280)
+
+        # Right side: steps area
+        steps_layout = QVBoxLayout()
+        steps_layout.setContentsMargins(0, 0, 0, 0)
 
         # Empty state widget (shown when no steps exist)
         self.empty_state = EmptyStateWidget()
@@ -445,6 +441,7 @@ class PathEditorScreen(QWidget):
         self.scroll_area.setStyleSheet("""
             QScrollArea {
                 border: none;
+                background-color: transparent;
             }
         """)
 
@@ -455,7 +452,7 @@ class PathEditorScreen(QWidget):
 
         # Add to content layout
         content_layout.addWidget(form_widget)
-        content_layout.addLayout(steps_layout)
+        content_layout.addLayout(steps_layout, 1)  # Give steps area stretch
 
         main_layout.addLayout(content_layout)
 
@@ -489,43 +486,13 @@ class PathEditorScreen(QWidget):
         if has_steps:
             self.empty_state.hide()
             self.scroll_area.show()
-            # Update button text
-            self.add_step_btn.setText("+ Step")
-            self.add_step_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #4CAF50;
-                    color: white;
-                    border: none;
-                    padding: 12px 24px;
-                    font-size: 14px;
-                    font-weight: bold;
-                    border-radius: 6px;
-                }
-                QPushButton:hover {
-                    background-color: #45a049;
-                }
-            """)
-            self.add_step_btn.setFixedWidth(120)
+            # Update button text for adding more steps
+            self.add_step_btn.setText("+ Add Step")
         else:
             self.empty_state.show()
             self.scroll_area.hide()
-            # Prominent button for empty state
+            # Prominent text for first step
             self.add_step_btn.setText("+ Add First Step")
-            self.add_step_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #4CAF50;
-                    color: white;
-                    border: none;
-                    padding: 14px 28px;
-                    font-size: 15px;
-                    font-weight: bold;
-                    border-radius: 8px;
-                }
-                QPushButton:hover {
-                    background-color: #45a049;
-                }
-            """)
-            self.add_step_btn.setFixedWidth(180)
 
     def new_path(self):
         """Initialize for creating a new path"""
@@ -702,12 +669,6 @@ class PathEditorScreen(QWidget):
         path_id = self._save_path()
         if path_id:
             self.path_saved.emit(path_id)
-
-    def _on_save_new(self):
-        """Save current and start a new path"""
-        path_id = self._save_path()
-        if path_id:
-            self.new_path()
 
     def _on_cancel(self):
         """Cancel editing"""

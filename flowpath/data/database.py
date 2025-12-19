@@ -94,6 +94,7 @@ class Database:
             self._create_steps_table(conn)
             self._create_categories_table(conn)
             self._create_tags_table(conn)
+            self._create_settings_table(conn)
             self._create_indexes(conn)
 
     def _create_paths_table(self, conn: sqlite3.Connection) -> None:
@@ -145,6 +146,16 @@ class Database:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+    def _create_settings_table(self, conn: sqlite3.Connection) -> None:
+        """Create the settings table for app configuration."""
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 

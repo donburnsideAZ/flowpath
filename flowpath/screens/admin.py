@@ -164,7 +164,7 @@ class CategoryItem(QFrame):
 
         # Usage count
         usage_label = QLabel(f"({usage_count} paths)")
-        usage_label.setStyleSheet("color: #888; font-size: 12px;")
+        usage_label.setStyleSheet("color: #888; font-size: 14px;")
         layout.addWidget(usage_label)
 
         layout.addStretch()
@@ -235,13 +235,13 @@ class TagItem(QFrame):
             color: #1565c0;
             padding: 4px 10px;
             border-radius: 12px;
-            font-size: 13px;
+            font-size: 14px;
         """)
         layout.addWidget(tag_pill)
 
         # Usage count
         usage_label = QLabel(f"({usage_count} paths)")
-        usage_label.setStyleSheet("color: #888; font-size: 12px;")
+        usage_label.setStyleSheet("color: #888; font-size: 14px;")
         layout.addWidget(usage_label)
 
         layout.addStretch()
@@ -320,6 +320,70 @@ class AdminScreen(QWidget):
         header_layout.addStretch()
 
         main_layout.addLayout(header_layout)
+
+        # === TEAM SETTINGS SECTION ===
+        team_section = QFrame()
+        team_section.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 8px;
+                margin-bottom: 16px;
+            }
+        """)
+        team_layout = QVBoxLayout(team_section)
+        team_layout.setContentsMargins(16, 16, 16, 16)
+        team_layout.setSpacing(12)
+
+        team_header = QLabel("Team Settings")
+        team_header.setStyleSheet("font-size: 16px; font-weight: bold; color: #333; border: none;")
+        team_layout.addWidget(team_header)
+
+        # Team name row
+        team_name_row = QHBoxLayout()
+        
+        team_name_label = QLabel("Team Name:")
+        team_name_label.setStyleSheet("font-size: 14px; color: #666; border: none;")
+        team_name_row.addWidget(team_name_label)
+
+        self.team_name_input = QLineEdit()
+        self.team_name_input.setText(self.data_service.get_team_name())
+        self.team_name_input.setStyleSheet("""
+            QLineEdit {
+                padding: 8px 12px;
+                font-size: 14px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+                min-width: 250px;
+            }
+            QLineEdit:focus {
+                border-color: #4CAF50;
+            }
+        """)
+        team_name_row.addWidget(self.team_name_input)
+
+        save_team_btn = QPushButton("Save")
+        save_team_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                font-size: 14px;
+                font-weight: bold;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        save_team_btn.clicked.connect(self._on_save_team_name)
+        team_name_row.addWidget(save_team_btn)
+
+        team_name_row.addStretch()
+        team_layout.addLayout(team_name_row)
+
+        main_layout.addWidget(team_section)
 
         # Tab widget for Categories and Tags
         self.tabs = QTabWidget()
@@ -498,6 +562,25 @@ class AdminScreen(QWidget):
         """Refresh the categories and tags lists."""
         self._refresh_categories()
         self._refresh_tags()
+        # Also refresh team name in case it was changed elsewhere
+        self.team_name_input.setText(self.data_service.get_team_name())
+
+    def _on_save_team_name(self):
+        """Save the team name setting."""
+        name = self.team_name_input.text().strip()
+        if name:
+            self.data_service.set_team_name(name)
+            QMessageBox.information(
+                self, 
+                "Saved", 
+                f"Team name updated to '{name}'."
+            )
+        else:
+            QMessageBox.warning(
+                self, 
+                "Invalid Name", 
+                "Team name cannot be empty."
+            )
 
     def _refresh_categories(self):
         """Refresh the categories list."""
@@ -521,7 +604,7 @@ class AdminScreen(QWidget):
         # Show empty state if no categories
         if not categories:
             empty_label = QLabel("No categories defined yet. Add one above!")
-            empty_label.setStyleSheet("color: #888; font-style: italic; padding: 20px;")
+            empty_label.setStyleSheet("color: #888; font-style: italic; font-size: 14px; padding: 20px;")
             empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.categories_container.insertWidget(0, empty_label)
 
@@ -547,7 +630,7 @@ class AdminScreen(QWidget):
         # Show empty state if no tags
         if not tags:
             empty_label = QLabel("No tags defined yet. Add one above!")
-            empty_label.setStyleSheet("color: #888; font-style: italic; padding: 20px;")
+            empty_label.setStyleSheet("color: #888; font-style: italic; font-size: 14px; padding: 20px;")
             empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.tags_container.insertWidget(0, empty_label)
 

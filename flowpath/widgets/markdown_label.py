@@ -59,7 +59,7 @@ class MarkdownLabel(QLabel):
         # Links: [text](url) -> <a href="url">text</a>
         html = re.sub(
             r'\[([^\]]+)\]\(([^)]+)\)',
-            r'<a href="\2" style="color: #1976D2;">\1</a>',
+            r'<a href="\2" style="color: #1976D2; text-decoration: none;">\1</a>',
             html
         )
 
@@ -74,6 +74,9 @@ class MarkdownLabel(QLabel):
 
         # Line breaks: \n -> <br>
         html = html.replace("\n", "<br>")
+
+        # Wrap in span with consistent font size (14px body text standard)
+        html = f'<span style="font-size: 14px;">{html}</span>'
 
         return html
 

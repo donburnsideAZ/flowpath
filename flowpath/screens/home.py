@@ -9,7 +9,7 @@ import sys
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QLineEdit, QListWidget, QGridLayout,
-    QFrame, QScrollArea, QListWidgetItem, QComboBox,
+    QFrame, QScrollArea, QListWidgetItem,
     QMessageBox, QProgressDialog
 )
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -32,48 +32,37 @@ COLOR_TAG_BLUE = "#1976D2"
 COLOR_BORDER = "#E0E0E0"
 COLOR_CARD_BG = "#FFFFFF"
 COLOR_HOVER_BG = "#F5F5F5"
-COLOR_MAIN_BG = "#EAEFF2"  # Subtle blue-gray background
+COLOR_MAIN_BG = "#FFFFFF"  # Clean white background
 
 
 class PathListRow(QFrame):
     """A list row displaying a FlowPath path."""
     clicked = pyqtSignal(int)  # Emits path_id when clicked
-    edit_clicked = pyqtSignal(int)  # Emits path_id when edit clicked
 
     def __init__(self, path: Path, step_count: int = 0, current_user: str = ""):
         super().__init__()
         self.path_id = path.id
-        self.is_creator = (path.creator == current_user) if current_user else True
         self.step_count = step_count
 
         self.setObjectName("PathListRow")
         self.setStyleSheet(f"""
             #PathListRow {{
-                background-color: {COLOR_CARD_BG};
-                border: 1px solid {COLOR_BORDER};
-                border-radius: 7px;
-                margin: 2px 0px;
+                background-color: transparent;
+                border: none;
+                border-bottom: 1px solid #F0F0F0;
+                margin: 0px;
+                padding: 0px;
             }}
             #PathListRow:hover {{
-                border-color: {COLOR_PRIMARY_GREEN};
                 background-color: {COLOR_HOVER_BG};
             }}
         """)
-        self.setFixedHeight(56)
+        self.setFixedHeight(48)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         layout = QHBoxLayout()
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(12)
-
-        # Path icon (bullet-sized green circle)
-        icon_label = QLabel()
-        icon_label.setFixedSize(10, 10)
-        icon_label.setStyleSheet(f"""
-            background-color: {COLOR_PRIMARY_GREEN};
-            border-radius: 5px;
-        """)
-        layout.addWidget(icon_label)
 
         # Title (main content - takes most space, with elide for long text)
         title_label = QLabel(path.title)
@@ -83,60 +72,30 @@ class PathListRow(QFrame):
             background: transparent;
         """)
         title_label.setMinimumWidth(100)
-        title_label.setMaximumWidth(400)
         layout.addWidget(title_label, 1)  # stretch factor 1
 
-        # Category pill
+        # Category (simple text, no background)
         if path.category:
             category_label = QLabel(path.category)
             category_label.setStyleSheet(f"""
                 color: {COLOR_TEXT_SECONDARY};
-                font-size: 11px;
-                background-color: #F0F0F0;
-                padding: 2px 8px;
-                border-radius: 7px;
+                font-size: 14px;
+                background: transparent;
             """)
             layout.addWidget(category_label)
 
-        # Step count badge
+        # Step count (simple text, no background shape)
         if step_count > 0:
-            step_badge = QLabel(f"{step_count} step{'s' if step_count != 1 else ''}")
-            step_badge.setStyleSheet(f"""
-                background-color: {COLOR_PRIMARY_GREEN};
-                color: white;
-                padding: 2px 8px;
-                border-radius: 7px;
-                font-size: 10px;
+            step_label = QLabel(f"{step_count} step{'s' if step_count != 1 else ''}")
+            step_label.setStyleSheet(f"""
+                color: {COLOR_PRIMARY_GREEN};
+                font-size: 14px;
                 font-weight: bold;
+                background: transparent;
             """)
-            layout.addWidget(step_badge)
-
-        # Edit button (if creator)
-        if self.is_creator:
-            edit_btn = QPushButton("EDIT")
-            edit_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {COLOR_EDIT_ORANGE};
-                    color: white;
-                    border: none;
-                    padding: 4px 12px;
-                    font-size: 10px;
-                    font-weight: bold;
-                    border-radius: 7px;
-                }}
-                QPushButton:hover {{
-                    background-color: {COLOR_EDIT_ORANGE_HOVER};
-                }}
-            """)
-            edit_btn.setFixedWidth(50)
-            edit_btn.clicked.connect(self._on_edit_clicked)
-            layout.addWidget(edit_btn)
+            layout.addWidget(step_label)
 
         self.setLayout(layout)
-
-    def _on_edit_clicked(self):
-        """Handle edit button click."""
-        self.edit_clicked.emit(self.path_id)
 
     def mousePressEvent(self, event):
         """Handle click on the row."""
@@ -174,13 +133,13 @@ class LegacyDocListRow(QFrame):
         self.setObjectName("LegacyDocListRow")
         self.setStyleSheet(f"""
             #LegacyDocListRow {{
-                background-color: {COLOR_CARD_BG};
-                border: 1px solid {COLOR_LEGACY_BORDER};
-                border-radius: 7px;
-                margin: 2px 0px;
+                background-color: transparent;
+                border: none;
+                border-bottom: 1px solid #F0F0F0;
+                margin: 0px;
+                padding: 0px;
             }}
             #LegacyDocListRow:hover {{
-                border-color: {COLOR_TAG_BLUE};
                 background-color: {COLOR_HOVER_BG};
             }}
         """)
@@ -190,16 +149,6 @@ class LegacyDocListRow(QFrame):
         layout = QHBoxLayout()
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(12)
-
-        # File type icon (bullet-sized colored circle)
-        icon_color = self.TYPE_COLORS.get(doc.file_type, '#757575')
-        icon_label = QLabel()
-        icon_label.setFixedSize(10, 10)
-        icon_label.setStyleSheet(f"""
-            background-color: {icon_color};
-            border-radius: 5px;
-        """)
-        layout.addWidget(icon_label)
 
         # Filename (main content - takes most space)
         filename_label = QLabel(doc.filename)
@@ -216,7 +165,7 @@ class LegacyDocListRow(QFrame):
         type_label = QLabel(doc.type_label)
         type_label.setStyleSheet(f"""
             color: {COLOR_TEXT_SECONDARY};
-            font-size: 11px;
+            font-size: 14px;
             background-color: #F0F0F0;
             padding: 2px 8px;
             border-radius: 7px;
@@ -230,7 +179,7 @@ class LegacyDocListRow(QFrame):
             color: white;
             padding: 2px 8px;
             border-radius: 7px;
-            font-size: 9px;
+            font-size: 14px;
             font-weight: bold;
         """)
         layout.addWidget(legacy_badge)
@@ -239,7 +188,7 @@ class LegacyDocListRow(QFrame):
         modified_label = QLabel(doc.modified_display)
         modified_label.setStyleSheet(f"""
             color: {COLOR_TEXT_MUTED};
-            font-size: 10px;
+            font-size: 14px;
             background: transparent;
         """)
         modified_label.setFixedWidth(80)
@@ -254,7 +203,7 @@ class LegacyDocListRow(QFrame):
                     color: white;
                     border: none;
                     padding: 4px 8px;
-                    font-size: 9px;
+                    font-size: 14px;
                     font-weight: bold;
                     border-radius: 7px;
                 }}
@@ -334,7 +283,7 @@ class PathCard(QFrame):
                 color: white;
                 padding: 2px 8px;
                 border-radius: 10px;
-                font-size: 10px;
+                font-size: 14px;
                 font-weight: bold;
             """)
             preview_layout.addWidget(step_badge)
@@ -345,7 +294,7 @@ class PathCard(QFrame):
         title_label = QLabel(path.title)
         title_label.setStyleSheet(f"""
             font-weight: bold;
-            font-size: 13px;
+            font-size: 14px;
             color: #333333;
             background: transparent;
         """)
@@ -358,7 +307,7 @@ class PathCard(QFrame):
             category_label = QLabel(path.category)
             category_label.setStyleSheet(f"""
                 color: {COLOR_TEXT_SECONDARY};
-                font-size: 11px;
+                font-size: 14px;
                 background: transparent;
             """)
             layout.addWidget(category_label)
@@ -369,7 +318,7 @@ class PathCard(QFrame):
             tags_label = QLabel(tags_display)
             tags_label.setStyleSheet(f"""
                 color: {COLOR_TAG_BLUE};
-                font-size: 10px;
+                font-size: 14px;
                 background: transparent;
             """)
             layout.addWidget(tags_label)
@@ -388,7 +337,7 @@ class PathCard(QFrame):
                     color: white;
                     border: none;
                     padding: 4px 12px;
-                    font-size: 10px;
+                    font-size: 14px;
                     font-weight: bold;
                     border-radius: 4px;
                 }}
@@ -485,7 +434,7 @@ class LegacyDocCard(QFrame):
             color: white;
             padding: 2px 8px;
             border-radius: 10px;
-            font-size: 9px;
+            font-size: 14px;
             font-weight: bold;
         """)
         preview_layout.addWidget(legacy_badge)
@@ -496,7 +445,7 @@ class LegacyDocCard(QFrame):
         filename_label = QLabel(doc.filename)
         filename_label.setStyleSheet(f"""
             font-weight: bold;
-            font-size: 12px;
+            font-size: 14px;
             color: #333333;
             background: transparent;
         """)
@@ -508,7 +457,7 @@ class LegacyDocCard(QFrame):
         type_label = QLabel(doc.type_label)
         type_label.setStyleSheet(f"""
             color: {COLOR_TEXT_SECONDARY};
-            font-size: 11px;
+            font-size: 14px;
             background: transparent;
         """)
         layout.addWidget(type_label)
@@ -521,7 +470,7 @@ class LegacyDocCard(QFrame):
         modified_label = QLabel(doc.modified_display)
         modified_label.setStyleSheet(f"""
             color: {COLOR_TEXT_MUTED};
-            font-size: 10px;
+            font-size: 14px;
             background: transparent;
         """)
         bottom_row.addWidget(modified_label)
@@ -537,7 +486,7 @@ class LegacyDocCard(QFrame):
                     color: white;
                     border: none;
                     padding: 4px 8px;
-                    font-size: 9px;
+                    font-size: 14px;
                     font-weight: bold;
                     border-radius: 4px;
                 }}
@@ -553,7 +502,7 @@ class LegacyDocCard(QFrame):
             size_label = QLabel(doc.size_display)
             size_label.setStyleSheet(f"""
                 color: {COLOR_TEXT_MUTED};
-                font-size: 10px;
+                font-size: 14px;
                 background: transparent;
             """)
             bottom_row.addWidget(size_label)
@@ -593,7 +542,7 @@ class CollapsibleSection(QFrame):
             QFrame {{
                 background-color: #F5F5F5;
                 border: 1px solid {COLOR_BORDER};
-                border-radius: 7px;
+                border-radius: 0px;
                 padding: 8px 12px;
             }}
             QFrame:hover {{
@@ -606,7 +555,7 @@ class CollapsibleSection(QFrame):
 
         # Arrow indicator
         self.arrow_label = QLabel(">")
-        self.arrow_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-weight: bold; font-size: 12px;")
+        self.arrow_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-weight: bold; font-size: 14px;")
         self.arrow_label.setFixedWidth(16)
         header_layout.addWidget(self.arrow_label)
 
@@ -624,7 +573,7 @@ class CollapsibleSection(QFrame):
             color: white;
             padding: 2px 8px;
             border-radius: 7px;
-            font-size: 10px;
+            font-size: 14px;
             font-weight: bold;
         """)
         header_layout.addWidget(self.count_label)
@@ -670,15 +619,9 @@ class CollapsibleSection(QFrame):
 
 
 class HomeScreen(QWidget):
-    """Main home screen showing library of paths and legacy documents."""
+    """Main home screen showing library of paths and files."""
     path_clicked = pyqtSignal(int)  # Emits path_id
-    edit_path_clicked = pyqtSignal(int)  # Emits path_id for editing
     new_path_requested = pyqtSignal()  # Emitted when New Path clicked
-
-    # Filter modes
-    FILTER_ALL = "All Documentation"
-    FILTER_FLOWPATH = "FlowPath Paths"
-    FILTER_LEGACY = "Legacy Files"
 
     def __init__(self):
         super().__init__()
@@ -687,8 +630,7 @@ class HomeScreen(QWidget):
         self.current_filter_category = None
         self.current_filter_tag = None
         self.current_search = ""
-        self.current_doc_filter = self.FILTER_ALL
-        self.legacy_section = None  # Will hold collapsible legacy section
+        self.current_tab = "paths"  # "paths" or "files"
         self.setup_ui()
 
     def setup_ui(self):
@@ -727,7 +669,7 @@ class HomeScreen(QWidget):
 
         # Category header
         cat_header = QLabel("Category")
-        cat_header.setStyleSheet("font-weight: bold; font-size: 13px; color: #333;")
+        cat_header.setStyleSheet("font-weight: bold; font-size: 14px; color: #333;")
         sidebar.addWidget(cat_header)
 
         # Category list
@@ -737,10 +679,12 @@ class HomeScreen(QWidget):
                 border: 1px solid {COLOR_BORDER};
                 border-radius: 7px;
                 background-color: white;
+                font-size: 14px;
             }}
             QListWidget::item {{
                 padding: 10px 12px;
                 border-bottom: 1px solid #F0F0F0;
+                font-size: 14px;
             }}
             QListWidget::item:last-child {{
                 border-bottom: none;
@@ -764,7 +708,7 @@ class HomeScreen(QWidget):
                 background-color: #F5F5F5;
                 border: 1px solid {COLOR_BORDER};
                 padding: 6px 12px;
-                font-size: 11px;
+                font-size: 14px;
                 border-radius: 7px;
                 color: {COLOR_TEXT_SECONDARY};
             }}
@@ -781,7 +725,7 @@ class HomeScreen(QWidget):
 
         # Tags header
         tags_header = QLabel("Tags")
-        tags_header.setStyleSheet("font-weight: bold; font-size: 13px; color: #333;")
+        tags_header.setStyleSheet("font-weight: bold; font-size: 14px; color: #333;")
         sidebar.addWidget(tags_header)
 
         # Tag list
@@ -791,11 +735,13 @@ class HomeScreen(QWidget):
                 border: 1px solid {COLOR_BORDER};
                 border-radius: 7px;
                 background-color: white;
+                font-size: 14px;
             }}
             QListWidget::item {{
                 padding: 8px 12px;
                 color: {COLOR_TAG_BLUE};
                 border-bottom: 1px solid #F0F0F0;
+                font-size: 14px;
             }}
             QListWidget::item:last-child {{
                 border-bottom: none;
@@ -832,9 +778,9 @@ class HomeScreen(QWidget):
         # Header row with team name
         header_row = QHBoxLayout()
         
-        team_label = QLabel("Axway Documentation Team")
-        team_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #333;")
-        header_row.addWidget(team_label)
+        self.team_label = QLabel(self.data_service.get_team_name())
+        self.team_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #333;")
+        header_row.addWidget(self.team_label)
         
         header_row.addStretch()
         content.addLayout(header_row)
@@ -845,13 +791,13 @@ class HomeScreen(QWidget):
 
         # Search bar
         self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText("Search paths, tags or categories...")
+        self.search_bar.setPlaceholderText("Search...")
         self.search_bar.setStyleSheet(f"""
             QLineEdit {{
-                padding: 12px 16px;
+                padding: 10px 16px;
                 font-size: 14px;
-                border: 2px solid {COLOR_BORDER};
-                border-radius: 7px;
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 4px;
                 background-color: white;
             }}
             QLineEdit:focus {{
@@ -861,60 +807,39 @@ class HomeScreen(QWidget):
         self.search_bar.textChanged.connect(self._on_search_changed)
         filter_row.addWidget(self.search_bar, stretch=1)
 
-        # Document type filter dropdown
-        self.doc_filter_combo = QComboBox()
-        self.doc_filter_combo.addItems([self.FILTER_ALL, self.FILTER_FLOWPATH, self.FILTER_LEGACY])
-        self.doc_filter_combo.setStyleSheet(f"""
-            QComboBox {{
-                padding: 10px 16px;
-                font-size: 13px;
-                border: 1px solid {COLOR_BORDER};
-                border-radius: 7px;
-                background-color: white;
-                min-width: 150px;
-            }}
-            QComboBox:hover {{
-                border-color: {COLOR_PRIMARY_GREEN};
-            }}
-            QComboBox:focus {{
-                border-color: {COLOR_PRIMARY_GREEN};
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: right center;
-                width: 20px;
-                border: none;
-            }}
-            QComboBox::down-arrow {{
-                width: 0;
-                height: 0;
-            }}
-            QComboBox QAbstractItemView {{
-                border: 1px solid {COLOR_BORDER};
-                border-radius: 7px;
-                background-color: white;
-                selection-background-color: #E8F5E9;
-                outline: none;
-            }}
-            QComboBox QAbstractItemView::item {{
-                padding: 8px 12px;
-                min-height: 24px;
-            }}
-            QComboBox QAbstractItemView::item:hover {{
-                background-color: #F5F5F5;
-            }}
-            QComboBox QAbstractItemView::item:selected {{
-                background-color: #E8F5E9;
-            }}
-        """)
-        self.doc_filter_combo.currentTextChanged.connect(self._on_doc_filter_changed)
-        filter_row.addWidget(self.doc_filter_combo)
-
         content.addLayout(filter_row)
 
-        # Filter indicator
-        self.filter_label = QLabel("Showing: All Documentation")
-        self.filter_label.setStyleSheet(f"font-size: 13px; color: {COLOR_TEXT_SECONDARY};")
+        # Tab bar for Paths / Files
+        tab_row = QHBoxLayout()
+        tab_row.setSpacing(0)
+        
+        self.paths_tab = QPushButton("Paths")
+        self.paths_tab.setCheckable(True)
+        self.paths_tab.setChecked(True)
+        self.paths_tab.setStyleSheet(self._get_tab_style(True))
+        self.paths_tab.clicked.connect(lambda: self._switch_tab("paths"))
+        tab_row.addWidget(self.paths_tab)
+        
+        self.files_tab = QPushButton("Files")
+        self.files_tab.setCheckable(True)
+        self.files_tab.setChecked(False)
+        self.files_tab.setStyleSheet(self._get_tab_style(False))
+        self.files_tab.clicked.connect(lambda: self._switch_tab("files"))
+        tab_row.addWidget(self.files_tab)
+        
+        tab_row.addStretch()
+        
+        # Count labels next to tabs
+        self.paths_count_label = QLabel("")
+        self.paths_count_label.setStyleSheet(f"font-size: 14px; color: {COLOR_TEXT_SECONDARY}; margin-left: 8px;")
+        tab_row.addWidget(self.paths_count_label)
+        
+        content.addLayout(tab_row)
+
+        # Filter indicator (shows active category/tag filter)
+        self.filter_label = QLabel("")
+        self.filter_label.setStyleSheet(f"font-size: 14px; color: {COLOR_TEXT_SECONDARY};")
+        self.filter_label.hide()  # Only show when filtering
         content.addWidget(self.filter_label)
 
         # List scroll area (changed from grid to vertical list)
@@ -956,8 +881,53 @@ class HomeScreen(QWidget):
 
     def refresh(self):
         """Refresh the entire screen with current data."""
+        self.team_label.setText(self.data_service.get_team_name())
         self._load_categories()
         self._load_tags()
+        self._load_content()
+
+    def _get_tab_style(self, is_active: bool) -> str:
+        """Get stylesheet for tab button based on active state."""
+        if is_active:
+            return f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {COLOR_PRIMARY_GREEN};
+                    border: none;
+                    border-bottom: 2px solid {COLOR_PRIMARY_GREEN};
+                    padding: 8px 16px;
+                    font-size: 14px;
+                    font-weight: bold;
+                }}
+            """
+        else:
+            return f"""
+                QPushButton {{
+                    background-color: transparent;
+                    color: {COLOR_TEXT_SECONDARY};
+                    border: none;
+                    border-bottom: 2px solid transparent;
+                    padding: 8px 16px;
+                    font-size: 14px;
+                }}
+                QPushButton:hover {{
+                    color: #333;
+                }}
+            """
+
+    def _switch_tab(self, tab: str):
+        """Switch between Paths and Files tabs."""
+        self.current_tab = tab
+        self.paths_tab.setChecked(tab == "paths")
+        self.files_tab.setChecked(tab == "files")
+        self.paths_tab.setStyleSheet(self._get_tab_style(tab == "paths"))
+        self.files_tab.setStyleSheet(self._get_tab_style(tab == "files"))
+        
+        # Clear search and filters when switching tabs
+        self.current_search = ""
+        self.search_bar.clear()
+        self._clear_filters()
+        
         self._load_content()
 
     def _load_categories(self):
@@ -983,95 +953,79 @@ class HomeScreen(QWidget):
             self.tag_list.addItems(["authentication", "video", "setup", "troubleshooting"])
 
     def _load_content(self):
-        """Load and display paths and legacy docs based on current filters."""
+        """Load and display paths or files based on current tab and filters."""
         # Clear existing items
         while self.cards_layout.count():
             item = self.cards_layout.takeAt(0)
             if item.widget():
                 item.widget().deleteLater()
 
-        # Get paths based on filters
-        paths = []
-        legacy_docs = []
-        
-        if self.current_doc_filter in (self.FILTER_ALL, self.FILTER_FLOWPATH):
-            if self.current_search:
-                paths = self.data_service.search_paths(self.current_search)
-            elif self.current_filter_category:
-                paths = self.data_service.get_paths_by_category(self.current_filter_category)
-            elif self.current_filter_tag:
-                paths = self.data_service.get_paths_by_tag(self.current_filter_tag)
-            else:
-                paths = self.data_service.get_all_paths()
-
-        if self.current_doc_filter in (self.FILTER_ALL, self.FILTER_LEGACY):
-            if self.current_search:
-                legacy_docs = self.data_service.search_legacy_documents(self.current_search)
-            else:
-                legacy_docs = self.data_service.get_legacy_documents()
-
-        # Update filter label
-        self._update_filter_label(len(paths), len(legacy_docs))
+        # Count both for the tab labels
+        all_paths = self.data_service.get_all_paths()
+        all_files = self.data_service.get_legacy_documents()
+        self.paths_count_label.setText(f"{len(all_paths)} paths · {len(all_files)} files")
 
         # Show/hide clear filter button
-        if self.current_filter_category or self.current_filter_tag:
+        if self.current_filter_category or self.current_filter_tag or self.current_search:
             self.clear_category_btn.show()
+            self.filter_label.show()
         else:
             self.clear_category_btn.hide()
+            self.filter_label.hide()
 
-        # Add path rows
-        for path in paths:
-            step_count = self.data_service.count_steps(path.id) if path.id else 0
-            row = PathListRow(path, step_count, self.current_user)
-            row.clicked.connect(self._on_path_clicked)
-            row.edit_clicked.connect(self._on_edit_path_clicked)
-            self.cards_layout.addWidget(row)
+        if self.current_tab == "paths":
+            # Load paths
+            if self.current_search:
+                paths = self.data_service.search_paths(self.current_search)
+                self.filter_label.setText(f'Search: "{self.current_search}" ({len(paths)} results)')
+            elif self.current_filter_category:
+                paths = self.data_service.get_paths_by_category(self.current_filter_category)
+                self.filter_label.setText(f"Category: {self.current_filter_category}")
+            elif self.current_filter_tag:
+                paths = self.data_service.get_paths_by_tag(self.current_filter_tag)
+                self.filter_label.setText(f"Tag: {self.current_filter_tag}")
+            else:
+                paths = all_paths
 
-        # Add legacy docs in collapsible section (if any exist)
-        if legacy_docs:
-            # Create or reuse collapsible section
-            self.legacy_section = CollapsibleSection("Legacy Documents", len(legacy_docs))
+            # Add path rows
+            for path in paths:
+                step_count = self.data_service.count_steps(path.id) if path.id else 0
+                row = PathListRow(path, step_count, self.current_user)
+                row.clicked.connect(self._on_path_clicked)
+                self.cards_layout.addWidget(row)
 
-            # Add legacy doc rows to the collapsible section
-            for doc in legacy_docs:
+            # Empty state
+            if not paths:
+                self._show_empty_state("No paths found.\n\nClick '+ New Path' to create one!")
+
+        else:
+            # Load files
+            if self.current_search:
+                files = self.data_service.search_legacy_documents(self.current_search)
+                self.filter_label.setText(f'Search: "{self.current_search}" ({len(files)} results)')
+            else:
+                files = all_files
+
+            # Add file rows
+            for doc in files:
                 row = LegacyDocListRow(doc)
                 row.clicked.connect(self._on_legacy_doc_clicked)
                 row.convert_clicked.connect(self._on_convert_doc_clicked)
-                self.legacy_section.add_widget(row)
+                self.cards_layout.addWidget(row)
 
-            self.cards_layout.addWidget(self.legacy_section)
+            # Empty state
+            if not files:
+                self._show_empty_state("No files found.\n\nAdd documents to your team folder to see them here.")
 
         # Add stretch at the end to push items to top
         self.cards_layout.addStretch()
 
-        # Show empty state if nothing found
-        if not paths and not legacy_docs:
-            # Remove the stretch we just added
-            self.cards_layout.takeAt(self.cards_layout.count() - 1)
-            empty_label = QLabel("No documentation found.\n\nClick '+ New Path' to create one!")
-            empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 16px; padding: 60px;")
-            self.cards_layout.addWidget(empty_label)
-
-    def _update_filter_label(self, path_count: int, legacy_count: int):
-        """Update the filter label with current counts."""
-        total = path_count + legacy_count
-        
-        if self.current_search:
-            self.filter_label.setText(f'Search: "{self.current_search}" ({total} results)')
-        elif self.current_filter_category:
-            self.filter_label.setText(f"Category: {self.current_filter_category} ({path_count} paths)")
-        elif self.current_filter_tag:
-            self.filter_label.setText(f"Tag: {self.current_filter_tag} ({path_count} paths)")
-        elif self.current_doc_filter == self.FILTER_FLOWPATH:
-            self.filter_label.setText(f"FlowPath Paths ({path_count})")
-        elif self.current_doc_filter == self.FILTER_LEGACY:
-            self.filter_label.setText(f"Legacy Files ({legacy_count})")
-        else:
-            if legacy_count > 0:
-                self.filter_label.setText(f"All Documentation ({path_count} paths, {legacy_count} legacy files)")
-            else:
-                self.filter_label.setText(f"Showing: All Paths ({path_count} total)")
+    def _show_empty_state(self, message: str):
+        """Show an empty state message."""
+        empty_label = QLabel(message)
+        empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 14px; padding: 60px;")
+        self.cards_layout.addWidget(empty_label)
 
     def _on_category_clicked(self, item: QListWidgetItem):
         """Handle category selection."""
@@ -1107,18 +1061,9 @@ class HomeScreen(QWidget):
             self.tag_list.clearSelection()
         self._load_content()
 
-    def _on_doc_filter_changed(self, filter_text: str):
-        """Handle document type filter change."""
-        self.current_doc_filter = filter_text
-        self._load_content()
-
     def _on_path_clicked(self, path_id: int):
         """Handle path card click."""
         self.path_clicked.emit(path_id)
-
-    def _on_edit_path_clicked(self, path_id: int):
-        """Handle edit button click on path card."""
-        self.edit_path_clicked.emit(path_id)
 
     def _on_legacy_doc_clicked(self, filepath: str):
         """Handle legacy document click - open in default app."""

@@ -145,7 +145,7 @@ class ToolButton(QPushButton):
         self.setStyleSheet("""
             QPushButton {
                 padding: 8px 8px;
-                font-size: 12px;
+                font-size: 14px;
                 border: 1px solid #ccc;
                 border-radius: 4px;
                 background: #f5f5f5;
@@ -930,7 +930,7 @@ class AnnotationEditor(QDialog):
         self.undo_btn.setStyleSheet("""
             QPushButton {
                 padding: 8px 12px;
-                font-size: 13px;
+                font-size: 14px;
                 border: 1px solid #ccc;
                 border-radius: 4px;
                 background: #fff;
@@ -945,7 +945,7 @@ class AnnotationEditor(QDialog):
         self.redo_btn.setStyleSheet("""
             QPushButton {
                 padding: 8px 12px;
-                font-size: 13px;
+                font-size: 14px;
                 border: 1px solid #ccc;
                 border-radius: 4px;
                 background: #fff;
@@ -970,7 +970,7 @@ class AnnotationEditor(QDialog):
             "Select: Click to select, drag to move, double-click to edit  •  "
             "Del key: Delete selected"
         )
-        self.instructions_label.setStyleSheet("color: #666; font-size: 11px;")
+        self.instructions_label.setStyleSheet("color: #666; font-size: 14px;")
         layout.addWidget(self.instructions_label)
 
         layout.addStretch()

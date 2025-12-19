@@ -163,9 +163,6 @@ class FlowPathWindow(QMainWindow):
         # Path card clicked -> Path Reader
         self.home_screen.path_clicked.connect(self._on_view_path)
 
-        # Edit button on path card -> Path Editor (edit mode)
-        self.home_screen.edit_path_clicked.connect(self._on_edit_path)
-
     def _connect_path_editor_screen(self):
         """Connect Path Editor screen signals."""
         # Save & Done -> Home (after saving)
@@ -315,6 +312,12 @@ if __name__ == "__main__":
     
     # Force Fusion style for consistent cross-platform appearance
     app.setStyle('Fusion')
+    
+    # Set global app font to 14px as baseline
+    from PyQt6.QtGui import QFont
+    app_font = QFont()
+    app_font.setPixelSize(14)
+    app.setFont(app_font)
     
     # Apply light mode palette to override system dark mode
     app.setPalette(create_light_palette())

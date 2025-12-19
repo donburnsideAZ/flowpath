@@ -166,7 +166,7 @@ class StepCreatorScreen(QWidget):
                 color: white;
                 border: none;
                 padding: 8px 16px;
-                font-size: 12px;
+                font-size: 14px;
                 border-radius: 4px;
             }
             QPushButton:hover {

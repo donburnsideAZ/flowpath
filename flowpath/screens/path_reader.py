@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QPushButton, QFrame, QScrollArea, QApplication
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QPixmap, QCursor, QPainter, QColor
+from PyQt6.QtGui import QPixmap, QCursor, QPainter, QColor, QFont
 
 from ..services import DataService
 from ..models import Path, Step
@@ -18,7 +18,7 @@ COLOR_TEXT_SECONDARY = "#666666"
 COLOR_TAG_BLUE = "#1976D2"
 COLOR_BORDER = "#E0E0E0"
 COLOR_CARD_BG = "#FFFFFF"
-COLOR_MAIN_BG = "#EAEFF2"
+COLOR_MAIN_BG = "#FFFFFF"  # Clean white background
 
 
 class ImageLightbox(QWidget):
@@ -109,20 +109,19 @@ class ReaderStepCard(QFrame):
         self.step = step
         self.full_pixmap = None  # Store full-size image for lightbox
 
-        self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
-        self.setStyleSheet(f"""
-            ReaderStepCard {{
-                background-color: {COLOR_CARD_BG};
-                border: 1px solid {COLOR_BORDER};
-                border-radius: 6px;
-                margin: 4px 0px;
-            }}
+        self.setStyleSheet("""
+            ReaderStepCard {
+                background-color: white;
+                border: none;
+                margin: 0px;
+                padding: 0px;
+            }
         """)
 
         # Horizontal layout - image left, content right
         layout = QHBoxLayout()
-        layout.setContentsMargins(16, 12, 16, 12)
-        layout.setSpacing(16)
+        layout.setContentsMargins(16, 20, 16, 20)
+        layout.setSpacing(24)
 
         # Screenshot - moderate size on left
         if step.screenshot_path:
@@ -142,11 +141,10 @@ class ReaderStepCard(QFrame):
                 image_label.setPixmap(scaled_pixmap)
                 # Fixed width container for consistent alignment
                 image_label.setFixedWidth(360)
-                image_label.setStyleSheet(f"""
+                image_label.setStyleSheet("""
                     background-color: white;
-                    border: 1px solid {COLOR_BORDER};
-                    border-radius: 4px;
-                    padding: 8px;
+                    border: none;
+                    padding: 0px;
                 """)
                 image_label.setToolTip("Click to enlarge")
                 image_label.clicked.connect(self._show_lightbox)
@@ -158,27 +156,33 @@ class ReaderStepCard(QFrame):
 
         # Content on right
         content_layout = QVBoxLayout()
-        content_layout.setSpacing(8)
+        content_layout.setSpacing(10)
 
-        # Step header
+        # Step header (H2 equivalent)
         step_label = QLabel(f"Step {step.step_number}")
         step_label.setStyleSheet("""
-            font-weight: bold; 
-            font-size: 16px; 
             color: #333;
             background: transparent;
+            padding: 0px;
+            margin: 0px;
         """)
+        step_header_font = QFont()
+        step_header_font.setPixelSize(18)
+        step_header_font.setBold(True)
+        step_label.setFont(step_header_font)
         content_layout.addWidget(step_label)
 
-        # Instructions
+        # Instructions (body text - 14px)
         if step.instructions:
             instructions_label = MarkdownLabel()
             instructions_label.setMarkdown(step.instructions)
             instructions_label.setStyleSheet("""
-                font-size: 14px; 
                 color: #444; 
                 background: transparent;
             """)
+            body_font = QFont()
+            body_font.setPixelSize(14)
+            instructions_label.setFont(body_font)
             instructions_label.setWordWrap(True)
             content_layout.addWidget(instructions_label)
 
@@ -194,11 +198,12 @@ class ReaderStepCard(QFrame):
         placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         placeholder.setStyleSheet(f"""
             background-color: #f5f5f5;
-            border: 2px dashed {COLOR_BORDER};
-            border-radius: 4px;
-            font-size: 12px;
+            border: none;
             color: {COLOR_TEXT_SECONDARY};
         """)
+        placeholder_font = QFont()
+        placeholder_font.setPixelSize(14)
+        placeholder.setFont(placeholder_font)
         layout.addWidget(placeholder, alignment=Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
 
     def _show_lightbox(self):
@@ -230,84 +235,143 @@ class PathReaderScreen(QWidget):
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
 
-        # === HEADER BAR (white background) ===
+        # === HEADER BAR ===
         header_widget = QWidget()
-        header_widget.setStyleSheet(f"background-color: {COLOR_CARD_BG}; border-bottom: 1px solid {COLOR_BORDER};")
+        header_widget.setStyleSheet(f"background-color: {COLOR_CARD_BG};")
         header_layout = QVBoxLayout(header_widget)
         header_layout.setContentsMargins(24, 16, 24, 16)
         header_layout.setSpacing(8)
 
-        # Top row with title and buttons
-        top_bar = QHBoxLayout()
-
-        # Path title
+        # Row 1: Back button and Title
+        title_row = QHBoxLayout()
+        
+        self.exit_btn = QPushButton("← Back")
+        self.exit_btn.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                color: #666;
+                border: none;
+                padding: 6px 12px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                color: #333;
+            }
+        """)
+        self.exit_btn.clicked.connect(self._on_exit)
+        title_row.addWidget(self.exit_btn)
+        
+        title_row.addSpacing(8)
+        
         self.title_label = QLabel("Path Title")
         self.title_label.setStyleSheet("font-size: 20px; font-weight: bold; color: #333;")
-        top_bar.addWidget(self.title_label)
+        self.title_label.setTextFormat(Qt.TextFormat.PlainText)
+        title_row.addWidget(self.title_label)
+        
+        title_row.addStretch()
+        header_layout.addLayout(title_row)
 
-        top_bar.addStretch()
+        # Row 2: Description
+        self.description_label = MarkdownLabel()
+        self.description_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY};")
+        desc_font = QFont()
+        desc_font.setPixelSize(14)
+        self.description_label.setFont(desc_font)
+        header_layout.addWidget(self.description_label)
 
-        # Action buttons
+        # Row 3: Category and Tags
+        meta_layout = QHBoxLayout()
+        meta_layout.setSpacing(4)
+        
+        body_font = QFont()
+        body_font.setPixelSize(14)
+        
+        body_font_bold = QFont()
+        body_font_bold.setPixelSize(14)
+        body_font_bold.setBold(True)
+
+        cat_prefix = QLabel("Category:")
+        cat_prefix.setStyleSheet("color: #333;")
+        cat_prefix.setFont(body_font_bold)
+        meta_layout.addWidget(cat_prefix)
+        
+        self.category_label = QPushButton("")
+        self.category_label.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {COLOR_TEXT_SECONDARY};
+                border: none;
+                text-align: left;
+                padding: 0px 4px;
+            }}
+            QPushButton:hover {{
+                color: {COLOR_PRIMARY_GREEN};
+            }}
+        """)
+        self.category_label.setFont(body_font)
+        self.category_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        meta_layout.addWidget(self.category_label)
+
+        meta_layout.addSpacing(20)
+
+        tags_prefix = QLabel("Tags:")
+        tags_prefix.setStyleSheet("color: #333;")
+        tags_prefix.setFont(body_font_bold)
+        meta_layout.addWidget(tags_prefix)
+        
+        self.tags_label = QPushButton("")
+        self.tags_label.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {COLOR_TAG_BLUE};
+                border: none;
+                text-align: left;
+                padding: 0px 4px;
+            }}
+            QPushButton:hover {{
+                color: {COLOR_PRIMARY_GREEN};
+            }}
+        """)
+        self.tags_label.setFont(body_font)
+        self.tags_label.setCursor(Qt.CursorShape.PointingHandCursor)
+        meta_layout.addWidget(self.tags_label)
+
+        meta_layout.addStretch()
+        header_layout.addLayout(meta_layout)
+
+        # Row 4: Action buttons
+        buttons_row = QHBoxLayout()
+        buttons_row.setSpacing(8)
+        
         share_btn = QPushButton("Share")
         share_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLOR_PRIMARY_GREEN};
-                color: white;
-                border: none;
-                padding: 8px 16px;
+                background-color: transparent;
+                color: {COLOR_TEXT_SECONDARY};
+                border: 1px solid {COLOR_BORDER};
+                padding: 6px 14px;
                 border-radius: 4px;
-                font-weight: bold;
+                font-size: 14px;
             }}
             QPushButton:hover {{
-                background-color: {COLOR_PRIMARY_GREEN_HOVER};
+                background-color: #f5f5f5;
             }}
         """)
 
         export_btn = QPushButton("Export")
         export_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {COLOR_PRIMARY_GREEN};
-                color: white;
-                border: none;
-                padding: 8px 16px;
+                background-color: transparent;
+                color: {COLOR_TEXT_SECONDARY};
+                border: 1px solid {COLOR_BORDER};
+                padding: 6px 14px;
                 border-radius: 4px;
-                font-weight: bold;
+                font-size: 14px;
             }}
             QPushButton:hover {{
-                background-color: {COLOR_PRIMARY_GREEN_HOVER};
+                background-color: #f5f5f5;
             }}
         """)
-
-        print_btn = QPushButton("Print")
-        print_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {COLOR_PRIMARY_GREEN};
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }}
-            QPushButton:hover {{
-                background-color: {COLOR_PRIMARY_GREEN_HOVER};
-            }}
-        """)
-
-        self.exit_btn = QPushButton("Exit")
-        self.exit_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #757575;
-                color: white;
-                border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #616161;
-            }
-        """)
-        self.exit_btn.clicked.connect(self._on_exit)
 
         self.edit_btn = QPushButton("Edit")
         self.edit_btn.setStyleSheet(f"""
@@ -315,8 +379,9 @@ class PathReaderScreen(QWidget):
                 background-color: {COLOR_EDIT_ORANGE};
                 color: white;
                 border: none;
-                padding: 8px 16px;
+                padding: 6px 18px;
                 border-radius: 4px;
+                font-size: 14px;
                 font-weight: bold;
             }}
             QPushButton:hover {{
@@ -325,55 +390,46 @@ class PathReaderScreen(QWidget):
         """)
         self.edit_btn.clicked.connect(self._on_edit)
 
-        top_bar.addWidget(share_btn)
-        top_bar.addWidget(export_btn)
-        top_bar.addWidget(print_btn)
-        top_bar.addWidget(self.exit_btn)
-        top_bar.addWidget(self.edit_btn)
-
-        header_layout.addLayout(top_bar)
-
-        # === PATH METADATA ===
-        meta_layout = QHBoxLayout()
-
-        self.category_label = QLabel("Category: ")
-        self.category_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 13px;")
-
-        self.tags_label = QLabel("Tags: ")
-        self.tags_label.setStyleSheet(f"color: {COLOR_TAG_BLUE}; font-size: 13px;")
-
-        meta_layout.addWidget(self.category_label)
-        meta_layout.addSpacing(20)
-        meta_layout.addWidget(self.tags_label)
-        meta_layout.addStretch()
-
-        header_layout.addLayout(meta_layout)
-
-        # Description (renders Markdown)
-        self.description_label = MarkdownLabel()
-        self.description_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-size: 13px;")
-        header_layout.addWidget(self.description_label)
+        buttons_row.addWidget(share_btn)
+        buttons_row.addWidget(export_btn)
+        buttons_row.addWidget(self.edit_btn)
+        buttons_row.addStretch()
+        header_layout.addLayout(buttons_row)
 
         self.main_layout.addWidget(header_widget)
 
-        # === STEPS AREA (blue-gray background) ===
+        # Separator line (90% width, centered, light gray)
+        separator_layout = QHBoxLayout()
+        separator_layout.setContentsMargins(0, 4, 0, 4)
+        separator_layout.addStretch(1)  # 5% left
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setStyleSheet("background-color: #E8E8E8; max-height: 1px;")
+        separator_layout.addWidget(separator, 18)  # 90% center
+        separator_layout.addStretch(1)  # 5% right
+        
+        separator_container = QWidget()
+        separator_container.setLayout(separator_layout)
+        self.main_layout.addWidget(separator_container)
+
+        # === STEPS AREA ===
         self.steps_container = QVBoxLayout()
         self.steps_container.setContentsMargins(24, 16, 24, 16)
-        self.steps_container.setSpacing(8)
+        self.steps_container.setSpacing(0)
         self.steps_container.addStretch()
 
         steps_widget = QWidget()
         steps_widget.setLayout(self.steps_container)
-        steps_widget.setStyleSheet(f"background-color: {COLOR_MAIN_BG};")
+        steps_widget.setStyleSheet("background-color: white;")
 
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setWidget(steps_widget)
-        self.scroll_area.setStyleSheet(f"""
-            QScrollArea {{
+        self.scroll_area.setStyleSheet("""
+            QScrollArea {
                 border: none;
-                background-color: {COLOR_MAIN_BG};
-            }}
+                background-color: white;
+            }
         """)
 
         self.main_layout.addWidget(self.scroll_area)
@@ -393,8 +449,8 @@ class PathReaderScreen(QWidget):
 
         # Update header
         self.title_label.setText(path.title)
-        self.category_label.setText(f"Category: {path.category or 'None'}")
-        self.tags_label.setText(f"Tags: {path.tags or 'None'}")
+        self.category_label.setText(path.category or "None")
+        self.tags_label.setText(path.tags or "None")
         self.description_label.setMarkdown(path.description or "")
         self.description_label.setVisible(bool(path.description))
 
@@ -413,7 +469,10 @@ class PathReaderScreen(QWidget):
         else:
             empty_label = QLabel("This path has no steps yet.")
             empty_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            empty_label.setStyleSheet("color: #666; font-size: 14px; padding: 40px;")
+            empty_label.setStyleSheet("color: #666; padding: 40px;")
+            empty_font = QFont()
+            empty_font.setPixelSize(14)
+            empty_label.setFont(empty_font)
             self.steps_container.insertWidget(0, empty_label)
 
     def _clear_steps(self):
