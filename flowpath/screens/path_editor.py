@@ -1,10 +1,10 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QLineEdit, QComboBox,
-    QFrame, QScrollArea, QMessageBox
+    QFrame, QScrollArea, QMessageBox, QSizePolicy
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QFont, QPainterPath
 
 from ..services import DataService
 from ..models import Path, Step
@@ -107,6 +107,112 @@ class StepCard(QFrame):
         return self.step.screenshot_path if self.step else None
 
 
+class EmptyStateWidget(QWidget):
+    """Attractive empty state shown when no steps exist yet"""
+
+    def __init__(self):
+        super().__init__()
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumHeight(300)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        rect = self.rect()
+        center_x = rect.width() // 2
+        center_y = rect.height() // 2 - 40
+
+        # Draw a stylized clipboard/path icon
+        self._draw_icon(painter, center_x, center_y - 60)
+
+        # Main message
+        painter.setPen(QColor("#333"))
+        font = QFont()
+        font.setPointSize(16)
+        font.setBold(True)
+        painter.setFont(font)
+
+        text = "Start building your path"
+        text_rect = painter.fontMetrics().boundingRect(text)
+        painter.drawText(center_x - text_rect.width() // 2, center_y + 40, text)
+
+        # Sub message
+        painter.setPen(QColor("#666"))
+        font.setPointSize(12)
+        font.setBold(False)
+        painter.setFont(font)
+
+        sub_text = "Capture screenshots and add instructions step by step"
+        sub_rect = painter.fontMetrics().boundingRect(sub_text)
+        painter.drawText(center_x - sub_rect.width() // 2, center_y + 65, sub_text)
+
+        # Tips
+        tips = [
+            "Tip: Keep instructions concise - one action per step",
+            "Tip: Use callouts to highlight important UI elements",
+            "Tip: Minimize distractions before capturing screenshots"
+        ]
+
+        font.setPointSize(11)
+        font.setItalic(True)
+        painter.setFont(font)
+        painter.setPen(QColor("#888"))
+
+        tip_y = center_y + 110
+        for tip in tips:
+            tip_rect = painter.fontMetrics().boundingRect(tip)
+            painter.drawText(center_x - tip_rect.width() // 2, tip_y, tip)
+            tip_y += 22
+
+        painter.end()
+
+    def _draw_icon(self, painter: QPainter, cx: int, cy: int):
+        """Draw a stylized clipboard with steps icon"""
+        # Clipboard background
+        painter.setPen(QPen(QColor("#4CAF50"), 3))
+        painter.setBrush(QColor("#f5f5f5"))
+
+        clip_width, clip_height = 60, 80
+        painter.drawRoundedRect(
+            cx - clip_width // 2, cy - clip_height // 2,
+            clip_width, clip_height, 8, 8
+        )
+
+        # Clipboard clip at top
+        painter.setBrush(QColor("#4CAF50"))
+        clip_top_width = 30
+        painter.drawRoundedRect(
+            cx - clip_top_width // 2, cy - clip_height // 2 - 5,
+            clip_top_width, 14, 4, 4
+        )
+
+        # Step lines with checkmarks
+        line_y = cy - clip_height // 2 + 20
+        for i in range(3):
+            # Checkbox
+            box_x = cx - clip_width // 2 + 12
+            painter.setPen(QPen(QColor("#4CAF50"), 2))
+            painter.setBrush(QColor("#fff"))
+            painter.drawRect(box_x, line_y, 10, 10)
+
+            # Checkmark for first item
+            if i == 0:
+                painter.setPen(QPen(QColor("#4CAF50"), 2))
+                path = QPainterPath()
+                path.moveTo(box_x + 2, line_y + 5)
+                path.lineTo(box_x + 4, line_y + 8)
+                path.lineTo(box_x + 8, line_y + 2)
+                painter.drawPath(path)
+
+            # Line placeholder
+            painter.setPen(QPen(QColor("#ccc"), 2))
+            line_x = box_x + 16
+            painter.drawLine(line_x, line_y + 5, cx + clip_width // 2 - 12, line_y + 5)
+
+            line_y += 20
+
+
 class PathEditorScreen(QWidget):
     path_saved = pyqtSignal(int)  # Emits path_id after save
     cancelled = pyqtSignal()
@@ -207,7 +313,6 @@ class PathEditorScreen(QWidget):
 
         # Category dropdown
         self.category_combo = QComboBox()
-        self.category_combo.addItems(["Select Category...", "LMS", "Content Creation", "Admin", "Troubleshooting"])
         self.category_combo.setStyleSheet("""
             QComboBox {
                 padding: 10px;
@@ -246,29 +351,31 @@ class PathEditorScreen(QWidget):
         # Right side: steps area
         steps_layout = QVBoxLayout()
 
-        # +Step button
-        self.add_step_btn = QPushButton("+ Step")
+        # +Step button (prominent style for empty state)
+        self.add_step_btn = QPushButton("+ Add First Step")
         self.add_step_btn.setStyleSheet("""
             QPushButton {
                 background-color: #4CAF50;
                 color: white;
                 border: none;
-                padding: 12px 24px;
-                font-size: 14px;
+                padding: 14px 28px;
+                font-size: 15px;
                 font-weight: bold;
-                border-radius: 6px;
+                border-radius: 8px;
             }
             QPushButton:hover {
                 background-color: #45a049;
             }
         """)
-        self.add_step_btn.setFixedWidth(120)
         self.add_step_btn.clicked.connect(self._on_add_step)
 
         steps_header = QHBoxLayout()
         steps_header.addStretch()
         steps_header.addWidget(self.add_step_btn)
         steps_layout.addLayout(steps_header)
+
+        # Empty state widget (shown when no steps exist)
+        self.empty_state = EmptyStateWidget()
 
         # Scrollable steps area
         self.steps_container = QVBoxLayout()
@@ -286,7 +393,10 @@ class PathEditorScreen(QWidget):
             }
         """)
 
+        # Stack empty state and scroll area
+        steps_layout.addWidget(self.empty_state)
         steps_layout.addWidget(self.scroll_area)
+        self.scroll_area.hide()  # Hidden initially for new paths
 
         # Add to content layout
         content_layout.addWidget(form_widget)
@@ -296,14 +406,82 @@ class PathEditorScreen(QWidget):
 
         self.setLayout(main_layout)
 
+    def _refresh_categories(self):
+        """Refresh the category dropdown with managed categories."""
+        current_text = self.category_combo.currentText()
+        self.category_combo.clear()
+        self.category_combo.addItem("Select Category...")
+
+        # Load managed categories from database
+        categories = self.data_service.get_managed_categories()
+        for cat in categories:
+            self.category_combo.addItem(cat['name'])
+
+        # If no managed categories exist, show a hint
+        if not categories:
+            self.category_combo.addItem("(Add categories in Settings)")
+
+        # Restore previous selection if it still exists
+        if current_text:
+            index = self.category_combo.findText(current_text)
+            if index >= 0:
+                self.category_combo.setCurrentIndex(index)
+
+    def _update_empty_state_visibility(self):
+        """Show/hide empty state based on whether steps exist"""
+        has_steps = len(self.step_cards) > 0
+
+        if has_steps:
+            self.empty_state.hide()
+            self.scroll_area.show()
+            # Update button text
+            self.add_step_btn.setText("+ Step")
+            self.add_step_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    padding: 12px 24px;
+                    font-size: 14px;
+                    font-weight: bold;
+                    border-radius: 6px;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
+            self.add_step_btn.setFixedWidth(120)
+        else:
+            self.empty_state.show()
+            self.scroll_area.hide()
+            # Prominent button for empty state
+            self.add_step_btn.setText("+ Add First Step")
+            self.add_step_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    border: none;
+                    padding: 14px 28px;
+                    font-size: 15px;
+                    font-weight: bold;
+                    border-radius: 8px;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
+            self.add_step_btn.setFixedWidth(180)
+
     def new_path(self):
         """Initialize for creating a new path"""
         self.current_path = None
         self.current_path_id = None
         self.pending_steps = []
         self.title_label.setText("New Path")
+        self._refresh_categories()
         self._clear_form()
         self._clear_steps()
+        self._update_empty_state_visibility()
 
     def load_path(self, path_id: int):
         """Load an existing path for editing"""
@@ -318,13 +496,20 @@ class PathEditorScreen(QWidget):
         self.pending_steps = []
         self.title_label.setText(f"Edit: {path.title}")
 
+        # Refresh categories dropdown
+        self._refresh_categories()
+
         # Populate form
         self.title_input.setText(path.title)
 
-        # Set category
+        # Set category (add it if it doesn't exist in managed categories)
         index = self.category_combo.findText(path.category)
         if index >= 0:
             self.category_combo.setCurrentIndex(index)
+        elif path.category:
+            # Category exists on path but not in managed list - add it temporarily
+            self.category_combo.addItem(path.category)
+            self.category_combo.setCurrentIndex(self.category_combo.count() - 1)
         else:
             self.category_combo.setCurrentIndex(0)
 
@@ -336,10 +521,14 @@ class PathEditorScreen(QWidget):
         for step in steps:
             self._add_step_card(step)
 
+        # Update empty state visibility
+        self._update_empty_state_visibility()
+
     def add_pending_step(self, step: Step):
         """Add a step that was created in the step creator"""
         self.pending_steps.append(step)
         self._add_step_card(step)
+        self._update_empty_state_visibility()
 
     def _clear_form(self):
         """Clear all form fields"""
@@ -386,6 +575,9 @@ class PathEditorScreen(QWidget):
                     if child.text().startswith("Step "):
                         child.setText(f"Step {i + 1}")
                         break
+
+            # Update empty state visibility
+            self._update_empty_state_visibility()
 
     def _collect_steps(self) -> list[Step]:
         """Collect step data from all cards"""

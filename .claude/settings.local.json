@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(wc:*)",
+      "Bash(xargs:*)",
+      "Bash(cat:*)",
+      "Bash(git -C /Users/donburnside/.claude-worktrees/Flowpath/nifty-varahamihira log --oneline -15)",
+      "Bash(python3:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

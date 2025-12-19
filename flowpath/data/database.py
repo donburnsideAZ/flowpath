@@ -92,6 +92,8 @@ class Database:
         with self.connection() as conn:
             self._create_paths_table(conn)
             self._create_steps_table(conn)
+            self._create_categories_table(conn)
+            self._create_tags_table(conn)
             self._create_indexes(conn)
 
     def _create_paths_table(self, conn: sqlite3.Connection) -> None:
@@ -121,6 +123,28 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (path_id) REFERENCES paths(id) ON DELETE CASCADE
+            )
+        """)
+
+    def _create_categories_table(self, conn: sqlite3.Connection) -> None:
+        """Create the categories table for admin-managed categories."""
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                color TEXT DEFAULT '#666666',
+                sort_order INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+    def _create_tags_table(self, conn: sqlite3.Connection) -> None:
+        """Create the tags table for admin-managed tags."""
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 

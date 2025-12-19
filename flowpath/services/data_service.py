@@ -432,12 +432,194 @@ class DataService:
     def get_legacy_documents_by_type(self, file_type: str) -> List[LegacyDocument]:
         """
         Get legacy documents filtered by type.
-        
+
         Args:
             file_type: Type to filter by (word, pdf, powerpoint, etc.)
-            
+
         Returns:
             List of LegacyDocument objects of the specified type
         """
         all_docs = self.get_legacy_documents()
         return [doc for doc in all_docs if doc.file_type == file_type]
+
+    # ==================== Admin: Category Management ====================
+
+    def get_managed_categories(self) -> List[dict]:
+        """
+        Get all admin-managed categories.
+
+        Returns:
+            List of category dicts with id, name, color, sort_order
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "SELECT id, name, color, sort_order FROM categories ORDER BY sort_order, name"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def add_category(self, name: str, color: str = "#666666") -> int:
+        """
+        Add a new category.
+
+        Args:
+            name: Category name
+            color: Hex color code for the category
+
+        Returns:
+            ID of the created category
+        """
+        with self.db.connection() as conn:
+            # Get max sort_order
+            cursor = conn.execute("SELECT MAX(sort_order) FROM categories")
+            max_order = cursor.fetchone()[0] or 0
+
+            cursor = conn.execute(
+                "INSERT INTO categories (name, color, sort_order) VALUES (?, ?, ?)",
+                (name.strip(), color, max_order + 1)
+            )
+            return cursor.lastrowid
+
+    def update_category(self, category_id: int, name: str, color: str) -> bool:
+        """
+        Update an existing category.
+
+        Args:
+            category_id: ID of the category to update
+            name: New name
+            color: New color
+
+        Returns:
+            True if update was successful
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "UPDATE categories SET name = ?, color = ? WHERE id = ?",
+                (name.strip(), color, category_id)
+            )
+            return cursor.rowcount > 0
+
+    def delete_category(self, category_id: int) -> bool:
+        """
+        Delete a category.
+
+        Args:
+            category_id: ID of the category to delete
+
+        Returns:
+            True if deletion was successful
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute("DELETE FROM categories WHERE id = ?", (category_id,))
+            return cursor.rowcount > 0
+
+    def reorder_categories(self, category_ids: List[int]) -> None:
+        """
+        Reorder categories based on the provided ID list.
+
+        Args:
+            category_ids: List of category IDs in desired order
+        """
+        with self.db.connection() as conn:
+            for order, cat_id in enumerate(category_ids):
+                conn.execute(
+                    "UPDATE categories SET sort_order = ? WHERE id = ?",
+                    (order, cat_id)
+                )
+
+    # ==================== Admin: Tag Management ====================
+
+    def get_managed_tags(self) -> List[dict]:
+        """
+        Get all admin-managed tags.
+
+        Returns:
+            List of tag dicts with id and name
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "SELECT id, name FROM tags ORDER BY name"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def add_tag(self, name: str) -> int:
+        """
+        Add a new tag.
+
+        Args:
+            name: Tag name
+
+        Returns:
+            ID of the created tag
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "INSERT INTO tags (name) VALUES (?)",
+                (name.strip(),)
+            )
+            return cursor.lastrowid
+
+    def delete_tag(self, tag_id: int) -> bool:
+        """
+        Delete a tag.
+
+        Args:
+            tag_id: ID of the tag to delete
+
+        Returns:
+            True if deletion was successful
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute("DELETE FROM tags WHERE id = ?", (tag_id,))
+            return cursor.rowcount > 0
+
+    def rename_tag(self, tag_id: int, new_name: str) -> bool:
+        """
+        Rename a tag.
+
+        Args:
+            tag_id: ID of the tag to rename
+            new_name: New name for the tag
+
+        Returns:
+            True if rename was successful
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "UPDATE tags SET name = ? WHERE id = ?",
+                (new_name.strip(), tag_id)
+            )
+            return cursor.rowcount > 0
+
+    def get_category_usage_count(self, category_name: str) -> int:
+        """
+        Get the number of paths using a category.
+
+        Args:
+            category_name: Name of the category
+
+        Returns:
+            Number of paths using this category
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM paths WHERE category = ?",
+                (category_name,)
+            )
+            return cursor.fetchone()[0]
+
+    def get_tag_usage_count(self, tag_name: str) -> int:
+        """
+        Get the number of paths using a tag.
+
+        Args:
+            tag_name: Name of the tag
+
+        Returns:
+            Number of paths using this tag
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "SELECT COUNT(*) FROM paths WHERE tags LIKE ?",
+                (f"%{tag_name}%",)
+            )
+            return cursor.fetchone()[0]

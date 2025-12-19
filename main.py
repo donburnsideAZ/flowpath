@@ -10,7 +10,10 @@ from flowpath.screens.home import HomeScreen
 from flowpath.screens.path_editor import PathEditorScreen
 from flowpath.screens.step_creator import StepCreatorScreen
 from flowpath.screens.path_reader import PathReaderScreen
+from flowpath.screens.admin import AdminScreen
 from flowpath.services import DataService
+
+__version__ = "0.5"
 
 
 class FlowPathWindow(QMainWindow):
@@ -21,10 +24,11 @@ class FlowPathWindow(QMainWindow):
     PATH_EDITOR = 1
     STEP_CREATOR = 2
     PATH_READER = 3
+    ADMIN = 4
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("FlowPath")
+        self.setWindowTitle(f"FlowPath v{__version__}")
         self.setGeometry(100, 100, 1000, 700)
 
         # Initialize data service (singleton)
@@ -45,19 +49,22 @@ class FlowPathWindow(QMainWindow):
         self.path_editor_screen = PathEditorScreen()
         self.step_creator_screen = StepCreatorScreen()
         self.path_reader_screen = PathReaderScreen()
+        self.admin_screen = AdminScreen()
 
         # Add screens to stack
         self.stack.addWidget(self.home_screen)          # index 0
         self.stack.addWidget(self.path_editor_screen)   # index 1
         self.stack.addWidget(self.step_creator_screen)  # index 2
         self.stack.addWidget(self.path_reader_screen)   # index 3
+        self.stack.addWidget(self.admin_screen)         # index 4
 
         # Connect navigation signals
         self._connect_home_screen()
         self._connect_path_editor_screen()
         self._connect_step_creator_screen()
         self._connect_path_reader_screen()
-        
+        self._connect_admin_screen()
+
         # Load saved team folder
         self._load_team_folder()
 
@@ -80,7 +87,14 @@ class FlowPathWindow(QMainWindow):
         file_menu.addAction(self.show_folder_action)
         
         file_menu.addSeparator()
-        
+
+        # Settings/Admin action
+        settings_action = QAction("Manage Categories && Tags...", self)
+        settings_action.triggered.connect(self._on_show_admin)
+        file_menu.addAction(settings_action)
+
+        file_menu.addSeparator()
+
         # About action
         about_action = QAction("About FlowPath", self)
         about_action.triggered.connect(self._on_about)
@@ -130,17 +144,16 @@ class FlowPathWindow(QMainWindow):
         QMessageBox.about(
             self,
             "About FlowPath",
-            "FlowPath\n\n"
+            f"FlowPath v{__version__}\n\n"
             "A cross-platform tool for creating step-by-step\n"
-            "documentation and SOPs.\n\n"
-            "Version 0.1.0"
+            "documentation and SOPs."
         )
 
     def _update_window_title(self, team_folder: str):
         """Update window title to show team folder."""
         import os
         folder_name = os.path.basename(team_folder)
-        self.setWindowTitle(f"FlowPath - {folder_name}")
+        self.setWindowTitle(f"FlowPath v{__version__} - {folder_name}")
 
     def _connect_home_screen(self):
         """Connect Home screen signals."""
@@ -183,6 +196,11 @@ class FlowPathWindow(QMainWindow):
         # Edit -> Path Editor (edit mode)
         self.path_reader_screen.edit_clicked.connect(self._on_edit_path)
 
+    def _connect_admin_screen(self):
+        """Connect Admin screen signals."""
+        # Back -> Home
+        self.admin_screen.back_clicked.connect(self._on_exit_admin)
+
     # ==================== Navigation Methods ====================
 
     def _show_home(self):
@@ -201,6 +219,11 @@ class FlowPathWindow(QMainWindow):
     def _show_path_reader(self):
         """Show the Path Reader screen."""
         self.stack.setCurrentIndex(self.PATH_READER)
+
+    def _show_admin(self):
+        """Show the Admin screen."""
+        self.admin_screen.refresh()
+        self.stack.setCurrentIndex(self.ADMIN)
 
     # ==================== Event Handlers ====================
 
@@ -237,6 +260,14 @@ class FlowPathWindow(QMainWindow):
 
     def _on_exit_reader(self):
         """Handle Exit button click in Path Reader."""
+        self._show_home()
+
+    def _on_show_admin(self):
+        """Handle Manage Categories & Tags menu action."""
+        self._show_admin()
+
+    def _on_exit_admin(self):
+        """Handle Back button click in Admin screen."""
         self._show_home()
 
 
