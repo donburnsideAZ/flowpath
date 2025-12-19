@@ -9,12 +9,14 @@ from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QFont, QPainterPath
 from ..services import DataService
 from ..models import Path, Step
 from ..widgets import MarkdownTextEdit
+from ..widgets.annotation_editor import AnnotationEditor
 
 
 class StepCard(QFrame):
     """A single step in the path editor"""
     delete_clicked = pyqtSignal(int)  # Emits step index
     edit_clicked = pyqtSignal(int)  # Emits step index
+    screenshot_updated = pyqtSignal()  # Emitted when screenshot is edited
 
     def __init__(self, step_number: int, step: Step = None):
         super().__init__()
@@ -33,6 +35,10 @@ class StepCard(QFrame):
 
         layout = QHBoxLayout()
 
+        # Screenshot area with edit button overlay
+        screenshot_container = QVBoxLayout()
+        screenshot_container.setSpacing(4)
+
         # Screenshot placeholder/display
         self.screenshot_label = QLabel("Screenshot")
         self.screenshot_label.setFixedSize(150, 100)
@@ -50,6 +56,29 @@ class StepCard(QFrame):
                 self.screenshot_label.setPixmap(
                     pixmap.scaled(150, 100, Qt.AspectRatioMode.KeepAspectRatio)
                 )
+
+        screenshot_container.addWidget(self.screenshot_label)
+
+        # Edit screenshot button (only shown if screenshot exists)
+        self.edit_screenshot_btn = QPushButton("Edit")
+        self.edit_screenshot_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 4px 12px;
+                font-size: 11px;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        self.edit_screenshot_btn.setFixedWidth(150)
+        self.edit_screenshot_btn.clicked.connect(self._on_edit_screenshot)
+        if not (step and step.screenshot_path):
+            self.edit_screenshot_btn.hide()
+        screenshot_container.addWidget(self.edit_screenshot_btn)
 
         # Step content
         content_layout = QVBoxLayout()
@@ -93,7 +122,7 @@ class StepCard(QFrame):
 
         content_layout.addWidget(self.instructions_input)
 
-        layout.addWidget(self.screenshot_label)
+        layout.addLayout(screenshot_container)
         layout.addLayout(content_layout)
 
         self.setLayout(layout)
@@ -105,6 +134,32 @@ class StepCard(QFrame):
     def get_screenshot_path(self) -> str:
         """Get the screenshot path if any"""
         return self.step.screenshot_path if self.step else None
+
+    def _on_edit_screenshot(self):
+        """Open the annotation editor to edit the screenshot."""
+        if not self.step or not self.step.screenshot_path:
+            return
+
+        try:
+            editor = AnnotationEditor(self.step.screenshot_path, self)
+            editor.completed.connect(self._on_screenshot_edited)
+            editor.cancelled.connect(lambda: None)  # Keep current on cancel
+            editor.exec()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not open editor: {e}")
+
+    def _on_screenshot_edited(self, filepath: str):
+        """Handle completion of screenshot editing."""
+        self.step.screenshot_path = filepath
+
+        # Reload the thumbnail
+        pixmap = QPixmap(filepath)
+        if not pixmap.isNull():
+            self.screenshot_label.setPixmap(
+                pixmap.scaled(150, 100, Qt.AspectRatioMode.KeepAspectRatio)
+            )
+
+        self.screenshot_updated.emit()
 
 
 class EmptyStateWidget(QWidget):

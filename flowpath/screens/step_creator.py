@@ -157,6 +157,26 @@ class StepCreatorScreen(QWidget):
         self.screenshot_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.screenshot_label.setStyleSheet("color: #999; font-size: 16px; border: none;")
         screenshot_layout.addWidget(self.screenshot_label)
+
+        # Edit screenshot button (hidden initially)
+        self.edit_screenshot_btn = QPushButton("Edit Screenshot")
+        self.edit_screenshot_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                font-size: 12px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        self.edit_screenshot_btn.clicked.connect(self._on_edit_screenshot)
+        self.edit_screenshot_btn.hide()
+        screenshot_layout.addWidget(self.edit_screenshot_btn, alignment=Qt.AlignmentFlag.AlignCenter)
+
         self.screenshot_frame.setLayout(screenshot_layout)
 
         main_layout.addWidget(self.screenshot_frame)
@@ -211,15 +231,30 @@ class StepCreatorScreen(QWidget):
             # Scale to fit the frame while maintaining aspect ratio
             scaled = pixmap.scaled(
                 self.screenshot_frame.width() - 20,
-                self.screenshot_frame.height() - 20,
+                self.screenshot_frame.height() - 60,  # Leave room for edit button
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
             self.screenshot_label.setPixmap(scaled)
             self.screenshot_label.setStyleSheet("border: none;")
+            self.edit_screenshot_btn.show()
         else:
             self.screenshot_label.setText("Screenshot saved!")
             self.screenshot_label.setStyleSheet("color: #4CAF50; font-size: 16px; border: none;")
+            self.edit_screenshot_btn.show()
+
+    def _on_edit_screenshot(self):
+        """Open the annotation editor to edit the current screenshot."""
+        if not self.screenshot_path:
+            return
+
+        try:
+            editor = AnnotationEditor(self.screenshot_path, self)
+            editor.completed.connect(self._on_annotation_complete)
+            editor.cancelled.connect(lambda: None)  # Keep current on cancel
+            editor.exec()
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Could not open editor: {e}")
 
     def _on_screenshot_cancelled(self):
         """Handle cancelled screenshot capture."""
@@ -236,6 +271,7 @@ class StepCreatorScreen(QWidget):
         self.screenshot_label.setStyleSheet("color: #999; font-size: 16px; border: none;")
         self.instructions_input.clear()
         self.screenshot_path = None
+        self.edit_screenshot_btn.hide()
 
     def _create_step(self) -> Step:
         """Create a Step object from the current form data"""
