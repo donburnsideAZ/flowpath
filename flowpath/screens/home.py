@@ -51,7 +51,7 @@ class PathListRow(QFrame):
             #PathListRow {{
                 background-color: {COLOR_CARD_BG};
                 border: 1px solid {COLOR_BORDER};
-                border-radius: 6px;
+                border-radius: 7px;
                 margin: 2px 0px;
             }}
             #PathListRow:hover {{
@@ -66,12 +66,12 @@ class PathListRow(QFrame):
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(12)
 
-        # Path icon placeholder (green square for now - replace with actual icon later)
+        # Path icon (bullet-sized green circle)
         icon_label = QLabel()
-        icon_label.setFixedSize(24, 24)
+        icon_label.setFixedSize(10, 10)
         icon_label.setStyleSheet(f"""
             background-color: {COLOR_PRIMARY_GREEN};
-            border-radius: 4px;
+            border-radius: 5px;
         """)
         layout.addWidget(icon_label)
 
@@ -95,7 +95,7 @@ class PathListRow(QFrame):
                 font-size: 11px;
                 background-color: #F0F0F0;
                 padding: 2px 8px;
-                border-radius: 10px;
+                border-radius: 7px;
             """)
             layout.addWidget(category_label)
 
@@ -106,7 +106,7 @@ class PathListRow(QFrame):
                 background-color: {COLOR_PRIMARY_GREEN};
                 color: white;
                 padding: 2px 8px;
-                border-radius: 10px;
+                border-radius: 7px;
                 font-size: 10px;
                 font-weight: bold;
             """)
@@ -123,7 +123,7 @@ class PathListRow(QFrame):
                     padding: 4px 12px;
                     font-size: 10px;
                     font-weight: bold;
-                    border-radius: 4px;
+                    border-radius: 7px;
                 }}
                 QPushButton:hover {{
                     background-color: {COLOR_EDIT_ORANGE_HOVER};
@@ -177,7 +177,7 @@ class LegacyDocListRow(QFrame):
             #LegacyDocListRow {{
                 background-color: {COLOR_CARD_BG};
                 border: 1px solid {COLOR_LEGACY_BORDER};
-                border-radius: 6px;
+                border-radius: 7px;
                 margin: 2px 0px;
             }}
             #LegacyDocListRow:hover {{
@@ -192,13 +192,13 @@ class LegacyDocListRow(QFrame):
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(12)
 
-        # File type icon (colored square)
+        # File type icon (bullet-sized colored circle)
         icon_color = self.TYPE_COLORS.get(doc.file_type, '#757575')
         icon_label = QLabel()
-        icon_label.setFixedSize(24, 24)
+        icon_label.setFixedSize(10, 10)
         icon_label.setStyleSheet(f"""
             background-color: {icon_color};
-            border-radius: 4px;
+            border-radius: 5px;
         """)
         layout.addWidget(icon_label)
 
@@ -221,7 +221,7 @@ class LegacyDocListRow(QFrame):
             font-size: 11px;
             background-color: #F0F0F0;
             padding: 2px 8px;
-            border-radius: 10px;
+            border-radius: 7px;
         """)
         layout.addWidget(type_label)
 
@@ -231,7 +231,7 @@ class LegacyDocListRow(QFrame):
             background-color: {COLOR_LEGACY_BADGE};
             color: white;
             padding: 2px 8px;
-            border-radius: 10px;
+            border-radius: 7px;
             font-size: 9px;
             font-weight: bold;
         """)
@@ -258,7 +258,7 @@ class LegacyDocListRow(QFrame):
                     padding: 4px 8px;
                     font-size: 9px;
                     font-weight: bold;
-                    border-radius: 4px;
+                    border-radius: 7px;
                 }}
                 QPushButton:hover {{
                     background-color: {COLOR_PRIMARY_GREEN_HOVER};
@@ -574,6 +574,103 @@ class LegacyDocCard(QFrame):
             self.clicked.emit(self.filepath)
 
 
+class CollapsibleSection(QFrame):
+    """A collapsible section with a header and content area."""
+
+    def __init__(self, title: str, count: int = 0):
+        super().__init__()
+        self.is_collapsed = True  # Start collapsed
+        self.count = count
+
+        self.setObjectName("CollapsibleSection")
+
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        # Header (clickable)
+        self.header = QFrame()
+        self.header.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.header.setStyleSheet(f"""
+            QFrame {{
+                background-color: #F5F5F5;
+                border: 1px solid {COLOR_BORDER};
+                border-radius: 7px;
+                padding: 8px 12px;
+            }}
+            QFrame:hover {{
+                background-color: #EEEEEE;
+            }}
+        """)
+
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(12, 8, 12, 8)
+
+        # Arrow indicator
+        self.arrow_label = QLabel(">")
+        self.arrow_label.setStyleSheet(f"color: {COLOR_TEXT_SECONDARY}; font-weight: bold; font-size: 12px;")
+        self.arrow_label.setFixedWidth(16)
+        header_layout.addWidget(self.arrow_label)
+
+        # Title
+        self.title_label = QLabel(title)
+        self.title_label.setStyleSheet(f"font-weight: bold; font-size: 13px; color: {COLOR_TEXT_SECONDARY};")
+        header_layout.addWidget(self.title_label)
+
+        header_layout.addStretch()
+
+        # Count badge
+        self.count_label = QLabel(f"{count}")
+        self.count_label.setStyleSheet(f"""
+            background-color: {COLOR_LEGACY_BADGE};
+            color: white;
+            padding: 2px 8px;
+            border-radius: 7px;
+            font-size: 10px;
+            font-weight: bold;
+        """)
+        header_layout.addWidget(self.count_label)
+
+        self.header.setLayout(header_layout)
+        self.header.mousePressEvent = self._on_header_clicked
+
+        main_layout.addWidget(self.header)
+
+        # Content container (hidden by default)
+        self.content_widget = QWidget()
+        self.content_layout = QVBoxLayout()
+        self.content_layout.setContentsMargins(0, 4, 0, 0)
+        self.content_layout.setSpacing(4)
+        self.content_widget.setLayout(self.content_layout)
+        self.content_widget.hide()
+
+        main_layout.addWidget(self.content_widget)
+
+        self.setLayout(main_layout)
+
+    def _on_header_clicked(self, event):
+        """Toggle collapse state."""
+        self.is_collapsed = not self.is_collapsed
+        self.content_widget.setVisible(not self.is_collapsed)
+        self.arrow_label.setText("v" if not self.is_collapsed else ">")
+
+    def add_widget(self, widget):
+        """Add a widget to the content area."""
+        self.content_layout.addWidget(widget)
+
+    def clear(self):
+        """Clear all widgets from content area."""
+        while self.content_layout.count():
+            item = self.content_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    def update_count(self, count: int):
+        """Update the count badge."""
+        self.count = count
+        self.count_label.setText(f"{count}")
+
+
 class HomeScreen(QWidget):
     """Main home screen showing library of paths and legacy documents."""
     path_clicked = pyqtSignal(int)  # Emits path_id
@@ -593,6 +690,7 @@ class HomeScreen(QWidget):
         self.current_filter_tag = None
         self.current_search = ""
         self.current_doc_filter = self.FILTER_ALL
+        self.legacy_section = None  # Will hold collapsible legacy section
         self.setup_ui()
 
     def setup_ui(self):
@@ -617,7 +715,7 @@ class HomeScreen(QWidget):
                 padding: 14px 24px;
                 font-size: 14px;
                 font-weight: bold;
-                border-radius: 8px;
+                border-radius: 7px;
             }}
             QPushButton:hover {{
                 background-color: {COLOR_PRIMARY_GREEN_HOVER};
@@ -639,7 +737,7 @@ class HomeScreen(QWidget):
         self.category_list.setStyleSheet(f"""
             QListWidget {{
                 border: 1px solid {COLOR_BORDER};
-                border-radius: 6px;
+                border-radius: 7px;
                 background-color: white;
             }}
             QListWidget::item {{
@@ -669,7 +767,7 @@ class HomeScreen(QWidget):
                 border: 1px solid {COLOR_BORDER};
                 padding: 6px 12px;
                 font-size: 11px;
-                border-radius: 4px;
+                border-radius: 7px;
                 color: {COLOR_TEXT_SECONDARY};
             }}
             QPushButton:hover {{
@@ -693,7 +791,7 @@ class HomeScreen(QWidget):
         self.tag_list.setStyleSheet(f"""
             QListWidget {{
                 border: 1px solid {COLOR_BORDER};
-                border-radius: 6px;
+                border-radius: 7px;
                 background-color: white;
             }}
             QListWidget::item {{
@@ -755,7 +853,7 @@ class HomeScreen(QWidget):
                 padding: 12px 16px;
                 font-size: 14px;
                 border: 2px solid {COLOR_BORDER};
-                border-radius: 8px;
+                border-radius: 7px;
                 background-color: white;
             }}
             QLineEdit:focus {{
@@ -773,7 +871,7 @@ class HomeScreen(QWidget):
                 padding: 10px 16px;
                 font-size: 13px;
                 border: 1px solid {COLOR_BORDER};
-                border-radius: 6px;
+                border-radius: 7px;
                 background-color: white;
                 min-width: 150px;
             }}
@@ -795,6 +893,7 @@ class HomeScreen(QWidget):
             }}
             QComboBox QAbstractItemView {{
                 border: 1px solid {COLOR_BORDER};
+                border-radius: 7px;
                 background-color: white;
                 selection-background-color: #E8F5E9;
                 outline: none;
@@ -930,23 +1029,19 @@ class HomeScreen(QWidget):
             row.edit_clicked.connect(self._on_edit_path_clicked)
             self.cards_layout.addWidget(row)
 
-        # Add separator between paths and legacy docs (if both exist)
-        if paths and legacy_docs:
-            separator = QFrame()
-            separator.setFrameShape(QFrame.Shape.HLine)
-            separator.setStyleSheet(f"""
-                background-color: {COLOR_BORDER};
-                margin: 12px 0px;
-            """)
-            separator.setFixedHeight(1)
-            self.cards_layout.addWidget(separator)
+        # Add legacy docs in collapsible section (if any exist)
+        if legacy_docs:
+            # Create or reuse collapsible section
+            self.legacy_section = CollapsibleSection("Legacy Documents", len(legacy_docs))
 
-        # Add legacy doc rows
-        for doc in legacy_docs:
-            row = LegacyDocListRow(doc)
-            row.clicked.connect(self._on_legacy_doc_clicked)
-            row.convert_clicked.connect(self._on_convert_doc_clicked)
-            self.cards_layout.addWidget(row)
+            # Add legacy doc rows to the collapsible section
+            for doc in legacy_docs:
+                row = LegacyDocListRow(doc)
+                row.clicked.connect(self._on_legacy_doc_clicked)
+                row.convert_clicked.connect(self._on_convert_doc_clicked)
+                self.legacy_section.add_widget(row)
+
+            self.cards_layout.addWidget(self.legacy_section)
 
         # Add stretch at the end to push items to top
         self.cards_layout.addStretch()
