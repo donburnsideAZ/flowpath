@@ -5,13 +5,122 @@ Admin screen for managing categories and tags.
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QLineEdit, QListWidget, QListWidgetItem,
-    QFrame, QMessageBox, QTabWidget, QColorDialog,
-    QInputDialog
+    QFrame, QMessageBox, QTabWidget, QDialog,
+    QInputDialog, QGridLayout
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
 from ..services import DataService
+
+
+# Preset colors for categories
+PRESET_COLORS = [
+    ("#f44336", "Red"),
+    ("#4CAF50", "Green"),
+    ("#2196F3", "Blue"),
+    ("#FFEB3B", "Yellow"),
+    ("#FF9800", "Orange"),
+]
+
+
+class ColorPickerDialog(QDialog):
+    """Simple color picker with preset colors."""
+
+    def __init__(self, current_color: str = "#4CAF50", parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Choose Color")
+        self.selected_color = current_color
+        self.setup_ui()
+
+    def setup_ui(self):
+        layout = QVBoxLayout()
+        layout.setSpacing(16)
+
+        label = QLabel("Select a color:")
+        label.setStyleSheet("font-size: 14px;")
+        layout.addWidget(label)
+
+        # Color buttons in a row
+        colors_layout = QHBoxLayout()
+        colors_layout.setSpacing(8)
+
+        self.color_buttons = []
+        for color_hex, color_name in PRESET_COLORS:
+            btn = QPushButton()
+            btn.setFixedSize(48, 48)
+            btn.setToolTip(color_name)
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {color_hex};
+                    border: 3px solid {"#333" if color_hex == self.selected_color else "#ccc"};
+                    border-radius: 8px;
+                }}
+                QPushButton:hover {{
+                    border-color: #666;
+                }}
+            """)
+            btn.clicked.connect(lambda checked, c=color_hex: self._select_color(c))
+            colors_layout.addWidget(btn)
+            self.color_buttons.append((btn, color_hex))
+
+        layout.addLayout(colors_layout)
+
+        # Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet("""
+            QPushButton {
+                padding: 8px 16px;
+                border: 1px solid #ccc;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #f0f0f0;
+            }
+        """)
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+
+        ok_btn = QPushButton("OK")
+        ok_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                padding: 8px 16px;
+                border: none;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        ok_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(ok_btn)
+
+        layout.addLayout(btn_layout)
+        self.setLayout(layout)
+
+    def _select_color(self, color_hex: str):
+        self.selected_color = color_hex
+        # Update button borders
+        for btn, c in self.color_buttons:
+            border_color = "#333" if c == color_hex else "#ccc"
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {c};
+                    border: 3px solid {border_color};
+                    border-radius: 8px;
+                }}
+                QPushButton:hover {{
+                    border-color: #666;
+                }}
+            """)
+
+    def get_color(self) -> str:
+        return self.selected_color
 
 
 class CategoryItem(QFrame):
@@ -444,9 +553,9 @@ class AdminScreen(QWidget):
 
     def _on_pick_color(self):
         """Open color picker for category color."""
-        color = QColorDialog.getColor(QColor(self.category_color), self, "Choose Category Color")
-        if color.isValid():
-            self.category_color = color.name()
+        dialog = ColorPickerDialog(self.category_color, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.category_color = dialog.get_color()
             self.color_btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {self.category_color};
@@ -490,14 +599,14 @@ class AdminScreen(QWidget):
             return
 
         # Get new color
-        color = QColorDialog.getColor(
-            QColor(category['color']), self, "Choose Category Color"
-        )
-        if not color.isValid():
-            color = QColor(category['color'])
+        dialog = ColorPickerDialog(category['color'], self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_color = dialog.get_color()
+        else:
+            new_color = category['color']
 
         try:
-            self.data_service.update_category(category_id, new_name.strip(), color.name())
+            self.data_service.update_category(category_id, new_name.strip(), new_color)
             self._refresh_categories()
         except Exception as e:
             if "UNIQUE constraint" in str(e):
