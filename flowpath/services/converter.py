@@ -27,6 +27,54 @@ class ConversionResult:
     step_count: int = 0
 
 
+def _find_executable(name: str, extra_paths: List[str] = None) -> Optional[str]:
+    """
+    Find an executable by checking common locations.
+    
+    GUI apps on macOS don't inherit the shell's PATH, so we need to
+    check common installation locations explicitly.
+    """
+    # First try shutil.which (uses current PATH)
+    found = shutil.which(name)
+    if found:
+        return found
+    
+    # Common locations to check
+    search_paths = [
+        f"/opt/homebrew/bin/{name}",  # Apple Silicon Homebrew
+        f"/usr/local/bin/{name}",      # Intel Homebrew / manual installs
+        f"/usr/bin/{name}",            # System
+    ]
+    
+    # Add extra paths (like LibreOffice app bundle)
+    if extra_paths:
+        search_paths = extra_paths + search_paths
+    
+    for path in search_paths:
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    
+    return None
+
+
+def _find_soffice() -> Optional[str]:
+    """Find LibreOffice soffice executable."""
+    return _find_executable('soffice', [
+        "/Applications/LibreOffice.app/Contents/MacOS/soffice",
+        os.path.expanduser("~/Applications/LibreOffice.app/Contents/MacOS/soffice"),
+    ])
+
+
+def _find_pdftoppm() -> Optional[str]:
+    """Find pdftoppm executable (from poppler)."""
+    return _find_executable('pdftoppm')
+
+
+def _find_pandoc() -> Optional[str]:
+    """Find pandoc executable."""
+    return _find_executable('pandoc')
+
+
 class LegacyConverter:
     """
     Converts legacy documents to FlowPath markdown format.
@@ -47,6 +95,18 @@ class LegacyConverter:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._is_macos = platform.system() == 'Darwin'
+        
+        # Find tools (GUI apps don't inherit shell PATH)
+        self._soffice = _find_soffice()
+        self._pdftoppm = _find_pdftoppm()
+        self._pandoc = _find_pandoc()
+        
+        if self._soffice:
+            print(f"Found LibreOffice: {self._soffice}")
+        if self._pdftoppm:
+            print(f"Found pdftoppm: {self._pdftoppm}")
+        if self._pandoc:
+            print(f"Found pandoc: {self._pandoc}")
     
     def convert(self, filepath: str) -> ConversionResult:
         """
@@ -242,9 +302,13 @@ class LegacyConverter:
     
     def _docx_to_markdown(self, path: Path) -> Optional[str]:
         """Convert docx to markdown using pandoc."""
+        if not self._pandoc:
+            print("Pandoc not found. Please install pandoc.")
+            return None
+        
         try:
             result = subprocess.run(
-                ['pandoc', str(path), '-t', 'markdown', '--wrap=none'],
+                [self._pandoc, str(path), '-t', 'markdown', '--wrap=none'],
                 capture_output=True,
                 text=True,
                 timeout=60
@@ -254,9 +318,6 @@ class LegacyConverter:
             else:
                 print(f"Pandoc error: {result.stderr}")
                 return None
-        except FileNotFoundError:
-            print("Pandoc not found. Please install pandoc.")
-            return None
         except subprocess.TimeoutExpired:
             print("Pandoc timed out")
             return None
@@ -310,90 +371,83 @@ class LegacyConverter:
             print(f"Extracted {len(images)} slide images using pdf2image")
             return images
         
-        # Method 4: Extract embedded media as fallback
-        # This won't give us slide renders, but will get any images in the slides
-        embedded = self._extract_pptx_embedded_media(path, output_dir)
-        if embedded:
-            print(f"Extracted {len(embedded)} embedded images from PPTX")
-            # Map embedded images to slides (best effort)
-            # If we have fewer images than slides, pad with None
-            # If we have more, just use first num_slides
-            if len(embedded) >= num_slides:
-                return embedded[:num_slides]
-            else:
-                # Pad with empty strings for slides without images
-                return embedded + [''] * (num_slides - len(embedded))
+        # Note: We no longer use embedded media as a fallback for slide images.
+        # Embedded media (ppt/media/*) contains images USED IN slides (logos, photos, icons),
+        # not screenshots OF the slides. Using them is misleading.
         
         # No images extracted - return empty strings for each slide
-        print("Warning: Could not extract slide images. Install LibreOffice for best results.")
+        print("Warning: Could not extract slide images.")
+        print("  For slide screenshots, install LibreOffice: brew install --cask libreoffice")
+        print("  And pdftoppm (poppler): brew install poppler")
         return [''] * num_slides
     
     def _try_libreoffice_conversion(self, path: Path, output_dir: Path) -> List[str]:
         """Try to convert PPTX to images using LibreOffice + pdftoppm."""
         try:
-            # Check if soffice is available
-            soffice_check = subprocess.run(
-                ['which', 'soffice'], 
-                capture_output=True, 
-                timeout=5
-            )
-            if soffice_check.returncode != 0:
+            # Check if we found soffice during init
+            if not self._soffice:
+                print("LibreOffice (soffice) not found")
+                return []
+            
+            if not self._pdftoppm:
+                print("pdftoppm not found")
                 return []
             
             # Convert to PDF first
+            print(f"Converting to PDF using: {self._soffice}")
             pdf_result = subprocess.run(
-                ['soffice', '--headless', '--convert-to', 'pdf', 
+                [self._soffice, '--headless', '--convert-to', 'pdf', 
                  '--outdir', str(output_dir), str(path)],
                 capture_output=True,
                 timeout=120
             )
             
             if pdf_result.returncode != 0:
+                print(f"LibreOffice PDF conversion failed: {pdf_result.stderr}")
                 return []
             
             pdf_path = output_dir / f"{path.stem}.pdf"
             if not pdf_path.exists():
+                print(f"PDF not created at expected path: {pdf_path}")
                 return []
             
-            # Try pdftoppm first
-            try:
-                pdftoppm_result = subprocess.run(
-                    ['pdftoppm', '-jpeg', '-r', '150', 
-                     str(pdf_path), str(output_dir / 'slide')],
-                    capture_output=True,
-                    timeout=120
-                )
+            print(f"PDF created, converting to images using: {self._pdftoppm}")
+            
+            # Convert PDF to images with pdftoppm
+            pdftoppm_result = subprocess.run(
+                [self._pdftoppm, '-jpeg', '-r', '150', 
+                 str(pdf_path), str(output_dir / 'slide')],
+                capture_output=True,
+                timeout=120
+            )
+            
+            if pdftoppm_result.returncode == 0:
+                # Clean up PDF
+                pdf_path.unlink()
                 
-                if pdftoppm_result.returncode == 0:
-                    # Clean up PDF
-                    pdf_path.unlink()
-                    
-                    # Find generated slide images (pdftoppm names them slide-1.jpg, slide-2.jpg, etc.)
-                    slide_images = sorted(output_dir.glob('slide-*.jpg'))
-                    
-                    # Rename to consistent format: slide-01.jpg, slide-02.jpg
-                    renamed_images = []
-                    for img in slide_images:
-                        # Extract number from filename
-                        match = re.search(r'slide-(\d+)\.jpg', img.name)
-                        if match:
-                            num = int(match.group(1))
-                            new_name = f"slide-{num:02d}.jpg"
-                            new_path = output_dir / new_name
-                            img.rename(new_path)
-                            renamed_images.append(new_name)
-                    
-                    return sorted(renamed_images)
-                    
-            except FileNotFoundError:
-                pass  # pdftoppm not found, will try other methods
+                # Find generated slide images (pdftoppm names them slide-1.jpg, slide-2.jpg, etc.)
+                slide_images = sorted(output_dir.glob('slide-*.jpg'))
+                
+                # Rename to consistent format: slide-01.jpg, slide-02.jpg
+                renamed_images = []
+                for img in slide_images:
+                    # Extract number from filename
+                    match = re.search(r'slide-(\d+)\.jpg', img.name)
+                    if match:
+                        num = int(match.group(1))
+                        new_name = f"slide-{num:02d}.jpg"
+                        new_path = output_dir / new_name
+                        img.rename(new_path)
+                        renamed_images.append(new_name)
+                
+                return sorted(renamed_images)
+            else:
+                print(f"pdftoppm failed: {pdftoppm_result.stderr}")
             
             # pdftoppm failed, clean up PDF
             if pdf_path.exists():
                 pdf_path.unlink()
                 
-        except FileNotFoundError:
-            pass
         except subprocess.TimeoutExpired:
             print("LibreOffice conversion timed out")
         except Exception as e:
@@ -408,11 +462,10 @@ class LegacyConverter:
             pdf_path = output_dir / f"{path.stem}.pdf"
             
             # Try to create PDF if it doesn't exist
-            if not pdf_path.exists():
-                # Try LibreOffice
+            if not pdf_path.exists() and self._soffice:
                 try:
                     subprocess.run(
-                        ['soffice', '--headless', '--convert-to', 'pdf', 
+                        [self._soffice, '--headless', '--convert-to', 'pdf', 
                          '--outdir', str(output_dir), str(path)],
                         capture_output=True,
                         timeout=120
@@ -469,10 +522,10 @@ class LegacyConverter:
             pdf_path = output_dir / f"{path.stem}.pdf"
             
             # Try to create PDF if it doesn't exist
-            if not pdf_path.exists():
+            if not pdf_path.exists() and self._soffice:
                 try:
                     subprocess.run(
-                        ['soffice', '--headless', '--convert-to', 'pdf', 
+                        [self._soffice, '--headless', '--convert-to', 'pdf', 
                          '--outdir', str(output_dir), str(path)],
                         capture_output=True,
                         timeout=120
