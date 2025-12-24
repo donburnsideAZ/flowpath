@@ -3,28 +3,6 @@
   "main_file": "main.py",
   "description": "Imported from Flowpath",
   "python_version": "3.11",
-  "created": "2025-12-13T06:00:20.713286",
-  "github_repo": null,
-  "handled_branches": {
-    "origin/claude/fix-flow-path-crash-01EFVJ6f6687hqSvj6MFNFhE": {
-      "action": "ignored",
-      "timestamp": "2025-12-13T06:00:27.990130",
-      "last_commit": "d85f137d60e0"
-    },
-    "origin/claude/flowpath-code-review-0157Qx1LWgCDDWqRagect2ed": {
-      "action": "ignored",
-      "timestamp": "2025-12-13T06:00:36.120185",
-      "last_commit": "f5753fa3964b"
-    },
-    "origin/claude/improve-step-creator-01Pizj9nrTqqMLz6fdTJWS5i": {
-      "action": "ignored",
-      "timestamp": "2025-12-13T06:01:26.577631",
-      "last_commit": "802bd673e5ab"
-    },
-    "origin/claude/verify-flowpath-git-setup-01PwGwWwTUR9exW9spgEmMfy": {
-      "action": "ignored",
-      "timestamp": "2025-12-13T06:01:28.113649",
-      "last_commit": "c5d859f8ca8a"
-    }
-  }
+  "created": "2025-12-24T04:10:21.934182",
+  "github_repo": null
 }
