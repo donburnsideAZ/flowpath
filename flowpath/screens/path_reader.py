@@ -7,7 +7,7 @@ from PyQt6.QtGui import QPixmap, QCursor, QPainter, QColor, QFont
 
 from ..services import DataService
 from ..models import Path, Step
-from ..widgets import MarkdownLabel
+from ..widgets import MarkdownLabel, ExportDialog
 
 # Color constants (matching home screen)
 COLOR_PRIMARY_GREEN = "#4CAF50"
@@ -227,6 +227,7 @@ class PathReaderScreen(QWidget):
         self.data_service = DataService.instance()
         self.current_path: Path = None
         self.current_path_id: int = None
+        self.current_steps: list = []  # Store steps for export
         self.current_user = ""  # Will be set by main window if needed
         self.setup_ui()
 
@@ -358,8 +359,8 @@ class PathReaderScreen(QWidget):
             }}
         """)
 
-        export_btn = QPushButton("Export")
-        export_btn.setStyleSheet(f"""
+        self.export_btn = QPushButton("Export")
+        self.export_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
                 color: {COLOR_TEXT_SECONDARY};
@@ -372,6 +373,7 @@ class PathReaderScreen(QWidget):
                 background-color: #f5f5f5;
             }}
         """)
+        self.export_btn.clicked.connect(self._on_export)
 
         self.edit_btn = QPushButton("Edit")
         self.edit_btn.setStyleSheet(f"""
@@ -391,7 +393,7 @@ class PathReaderScreen(QWidget):
         self.edit_btn.clicked.connect(self._on_edit)
 
         buttons_row.addWidget(share_btn)
-        buttons_row.addWidget(export_btn)
+        buttons_row.addWidget(self.export_btn)
         buttons_row.addWidget(self.edit_btn)
         buttons_row.addStretch()
         header_layout.addLayout(buttons_row)
@@ -446,6 +448,7 @@ class PathReaderScreen(QWidget):
         path, steps = result
         self.current_path = path
         self.current_path_id = path_id
+        self.current_steps = steps  # Store for export
 
         # Update header
         self.title_label.setText(path.title)
@@ -490,3 +493,9 @@ class PathReaderScreen(QWidget):
         """Handle edit button"""
         if self.current_path_id:
             self.edit_clicked.emit(self.current_path_id)
+
+    def _on_export(self):
+        """Handle export button"""
+        if self.current_path:
+            dialog = ExportDialog(self.current_path, self.current_steps, self)
+            dialog.exec()
